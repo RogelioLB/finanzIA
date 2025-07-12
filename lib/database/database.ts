@@ -6,7 +6,7 @@ import * as SQLite from "expo-sqlite";
  * @returns SQLite database object
  */
 export function openDatabase() {
-  const db = SQLite.openDatabaseSync("finance.db");
+  const db = SQLite.openDatabaseSync("finance.db", { useNewConnection: true });
   return db;
 }
 

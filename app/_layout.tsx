@@ -6,6 +6,7 @@ import {
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { MenuProvider } from "react-native-popup-menu";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
@@ -13,6 +14,7 @@ import "../global.css";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { initDatabase } from "@/lib/database/database";
 import { SQLiteProvider } from "expo-sqlite";
+import { AccountsProvider } from "@/contexts/AccountsContext";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -27,44 +29,50 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider style={{ backgroundColor: "#FAFAFA" }}>
-      <ThemeProvider value={colorScheme !== "dark" ? DarkTheme : DefaultTheme}>
-        <SQLiteProvider
-          databaseName="finance.db"
-          onInit={async () => {
-            console.log("Database initialized");
-            await initDatabase();
-            console.log("Database initialized");
-          }}
+      <MenuProvider>
+        <ThemeProvider
+          value={colorScheme !== "dark" ? DarkTheme : DefaultTheme}
         >
-          <Stack
-            screenOptions={{
-              animation: "slide_from_right",
-              animationDuration: 300,
-              headerShown: false,
+          <SQLiteProvider
+            databaseName="finance.db"
+            onInit={async () => {
+              console.log("Database initialized");
+              await initDatabase();
+              console.log("Database initialized");
             }}
           >
-            <Stack.Screen
-              name="(tabs)"
-              options={{
-                headerShown: false,
-                animation: "fade",
-                animationDuration: 250,
-              }}
-            />
-            <Stack.Screen
-              name="accounts"
-              options={{
-                title: "Accounts",
-                headerShown: false,
-                animation: "fade_from_bottom",
-                animationDuration: 250,
-              }}
-            />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="auto" />
-        </SQLiteProvider>
-      </ThemeProvider>
+            <AccountsProvider>
+              <Stack
+                screenOptions={{
+                  animation: "slide_from_right",
+                  animationDuration: 300,
+                  headerShown: false,
+                }}
+              >
+                <Stack.Screen
+                  name="(tabs)"
+                  options={{
+                    headerShown: false,
+                    animation: "fade",
+                    animationDuration: 250,
+                  }}
+                />
+                <Stack.Screen
+                  name="accounts"
+                  options={{
+                    title: "Accounts",
+                    headerShown: false,
+                    animation: "fade_from_bottom",
+                    animationDuration: 250,
+                  }}
+                />
+                <Stack.Screen name="+not-found" />
+              </Stack>
+              <StatusBar style="auto" />
+            </AccountsProvider>
+          </SQLiteProvider>
+        </ThemeProvider>
+      </MenuProvider>
     </SafeAreaProvider>
   );
 }

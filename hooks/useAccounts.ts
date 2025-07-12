@@ -1,12 +1,15 @@
-import { getAccounts } from "@/lib/database/accountService";
-import { Account } from "@/lib/models/types";
-import { useState } from "react";
+import { AccountsContext } from "@/contexts/AccountsContext";
+import { useContext } from "react";
 
+export { NewAccount } from "@/contexts/AccountsContext";
+
+// Hook to access the accounts context
 export function useAccounts() {
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  getAccounts().then((res) => {
-    console.log(res);
-    setAccounts(res.data || []);
-  });
-  return { accounts };
+  const context = useContext(AccountsContext);
+  
+  if (context === undefined) {
+    throw new Error('useAccounts must be used within an AccountsProvider');
+  }
+  
+  return context;
 }

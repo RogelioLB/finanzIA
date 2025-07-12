@@ -24,20 +24,14 @@ export async function createAccount(
     | "last_synced_at"
   >
 ): Promise<DatabaseResult<Account>> {
-  console.log("Creating account: ", account);
   const db = openDatabase();
-  console.log("Creating account: ", db);
   const id = generateUniqueId();
-  console.log("Creating account: ", id);
   const now = Date.now();
-  console.log("Creating account: ", now);
 
   return new Promise((resolve) => {
     try {
-      console.log("Iniciando transacción...");
       db.withTransactionAsync(async () => {
         try {
-          console.log("Ejecutando SQL...");
           const result = (await db.runAsync(
             `INSERT INTO accounts (
               id, name, balance, currency, color, icon,
@@ -56,8 +50,6 @@ export async function createAccount(
             ]
           )) as SQLiteRunResult;
 
-          console.log("SQL ejecutado, resultado:", result);
-
           if (result.changes > 0) {
             const newAccount: Account = {
               id,
@@ -72,10 +64,8 @@ export async function createAccount(
               sync_status: "local",
               last_synced_at: undefined,
             };
-            console.log("Cuenta creada exitosamente:", newAccount);
             resolve({ success: true, data: newAccount });
           } else {
-            console.log("Error: no se afectaron filas");
             resolve({ success: false, error: "Error al crear la cuenta" });
           }
         } catch (error) {
@@ -109,8 +99,6 @@ export async function createAccount(
  */
 export async function getAccounts(): Promise<DatabaseResult<Account[]>> {
   const db = openDatabase();
-  console.log(db);
-  console.log("getAccounts");
   return new Promise((resolve) => {
     db.withTransactionAsync(async () => {
       const accounts = await db.getAllAsync<Account>(
@@ -277,14 +265,15 @@ export async function deleteAccount(
          sync_status = 'local'
          WHERE id = ?`,
         [now, id]
-      )) as SQLiteRunResult & { rowsAffected: number };
+      )) as SQLiteRunResult;
 
-      if (result.rowsAffected > 0) {
+      if (result.changes > 0) {
         resolve({ success: true, data: true });
       } else {
         resolve({ success: false, error: "Cuenta no encontrada" });
       }
     }).catch((error: Error) => {
+      console.log(error);
       resolve({ success: false, error: error.message });
     });
   });
