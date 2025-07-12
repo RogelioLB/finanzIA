@@ -4,6 +4,7 @@ import {
   createAccount,
   deleteAccount as delAccount,
   getAccounts,
+  transferBalance as transferBalanceService,
 } from "@/lib/database/accountService";
 
 // Tipo para una nueva cuenta (sin los campos automáticos)
@@ -19,6 +20,7 @@ interface AccountsContextType {
   error: string | null;
   deleteAccount: (id: string) => Promise<boolean>;
   addAccount: (account: NewAccount) => Promise<boolean>;
+  transferBalance: (fromAccountId: string, toAccountId: string, amount: number) => Promise<{success: boolean, error?: string}>;
   refresh: () => void;
 }
 
@@ -29,6 +31,7 @@ export const AccountsContext = createContext<AccountsContextType>({
   error: null,
   deleteAccount: async () => false,
   addAccount: async () => false,
+  transferBalance: async () => ({ success: false }),
   refresh: () => {},
 });
 
@@ -121,6 +124,45 @@ export function AccountsProvider({ children }: AccountsProviderProps) {
     fetchAccounts();
   }, [fetchAccounts, refreshTrigger]);
 
+  // Función para transferir dinero entre cuentas
+  const transferBalance = useCallback(async (
+    fromAccountId: string,
+    toAccountId: string,
+    amount: number
+  ): Promise<{success: boolean, error?: string}> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const result = await transferBalanceService(fromAccountId, toAccountId, amount);
+      
+      if (result.success && result.data) {
+        // Actualizamos las cuentas en el estado
+        setAccounts(prev => prev.map(account => {
+          if (account.id === fromAccountId && result.data) {
+            return result.data.fromAccount;
+          }
+          if (account.id === toAccountId && result.data) {
+            return result.data.toAccount;
+          }
+          return account;
+        }));
+        
+        return { success: true };
+      } else {
+        setError(result.error || "Error al transferir fondos");
+        return { success: false, error: result.error };
+      }
+    } catch (err) {
+      const errorMsg = "Error inesperado al transferir fondos";
+      setError(errorMsg);
+      console.error(err);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Create the context value object
   const value: AccountsContextType = {
     accounts,
@@ -128,6 +170,7 @@ export function AccountsProvider({ children }: AccountsProviderProps) {
     error,
     deleteAccount,
     addAccount,
+    transferBalance,
     refresh
   };
 

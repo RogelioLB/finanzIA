@@ -7,6 +7,23 @@ function generateUniqueId() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
 }
 
+export function getGlobalBalance(): Promise<
+  { global_balance: number; currency: string }[]
+> {
+  const db = openDatabase();
+  return new Promise((resolve) => {
+    db.withTransactionAsync(async () => {
+      const result = await db.getAllAsync<{
+        global_balance: number;
+        currency: string;
+      }>(
+        `SELECT SUM(balance) as global_balance, currency FROM accounts where is_deleted = 0 group by currency`
+      );
+      resolve(result);
+    });
+  });
+}
+
 /**
  * Crea una nueva cuenta
  *
@@ -275,6 +292,120 @@ export async function deleteAccount(
     }).catch((error: Error) => {
       console.log(error);
       resolve({ success: false, error: error.message });
+    });
+  });
+}
+
+/**
+ * Transfiere fondos entre cuentas
+ *
+ * @param fromAccountId ID de la cuenta origen
+ * @param toAccountId ID de la cuenta destino
+ * @param amount Monto a transferir (debe ser positivo)
+ * @returns Promise con el resultado de la operación
+ */
+export async function transferBalance(
+  fromAccountId: string,
+  toAccountId: string,
+  amount: number
+): Promise<DatabaseResult<{fromAccount: Account, toAccount: Account}>> {
+  if (amount <= 0) {
+    return { success: false, error: "El monto debe ser positivo" };
+  }
+
+  if (fromAccountId === toAccountId) {
+    return { success: false, error: "Las cuentas origen y destino deben ser diferentes" };
+  }
+
+  const db = openDatabase();
+  const now = Date.now();
+
+  return new Promise((resolve) => {
+    db.withTransactionAsync(async () => {
+      try {
+        // 1. Verificar que la cuenta origen tenga fondos suficientes
+        const fromAccount = await db.getFirstAsync<Account>(
+          `SELECT * FROM accounts WHERE id = ? AND is_deleted = 0`,
+          [fromAccountId]
+        );
+
+        if (!fromAccount) {
+          resolve({ success: false, error: "Cuenta origen no encontrada" });
+          return;
+        }
+
+        if (fromAccount.balance < amount) {
+          resolve({ success: false, error: "Fondos insuficientes en la cuenta origen" });
+          return;
+        }
+
+        // 2. Verificar que la cuenta destino exista
+        const toAccount = await db.getFirstAsync<Account>(
+          `SELECT * FROM accounts WHERE id = ? AND is_deleted = 0`,
+          [toAccountId]
+        );
+
+        if (!toAccount) {
+          resolve({ success: false, error: "Cuenta destino no encontrada" });
+          return;
+        }
+
+        // 3. Restar fondos de la cuenta origen
+        await db.runAsync(
+          `UPDATE accounts SET 
+           balance = balance - ?, 
+           updated_at = ?,
+           sync_status = 'local'
+           WHERE id = ?`,
+          [amount, now, fromAccountId]
+        );
+
+        // 4. Sumar fondos a la cuenta destino
+        await db.runAsync(
+          `UPDATE accounts SET 
+           balance = balance + ?, 
+           updated_at = ?,
+           sync_status = 'local'
+           WHERE id = ?`,
+          [amount, now, toAccountId]
+        );
+
+        // 5. Obtener las cuentas actualizadas
+        const updatedFromAccount = await db.getFirstAsync<Account>(
+          `SELECT * FROM accounts WHERE id = ?`,
+          [fromAccountId]
+        );
+
+        const updatedToAccount = await db.getFirstAsync<Account>(
+          `SELECT * FROM accounts WHERE id = ?`,
+          [toAccountId]
+        );
+
+        if (updatedFromAccount && updatedToAccount) {
+          resolve({ 
+            success: true, 
+            data: {
+              fromAccount: updatedFromAccount,
+              toAccount: updatedToAccount
+            }
+          });
+        } else {
+          // Esto no debería ocurrir si las operaciones anteriores fueron exitosas
+          resolve({ success: false, error: "Error al obtener las cuentas actualizadas" });
+        }
+      } catch (error) {
+        console.error("Error en la transferencia:", error);
+        resolve({
+          success: false,
+          error: `Error: ${(error as Error).message}`
+        });
+      }
+    }).catch((error: Error) => {
+      console.error("Error en la transacción:", error);
+      resolve({
+        success: false,
+        error: `Error de transacción: ${error.message}`
+      });
     });
   });
 }

@@ -37,6 +37,8 @@ export default function AnimatedAlert({
   const scale = useSharedValue(0.8);
   const [modalVisible, setModalVisible] = useState(false);
 
+
+
   useEffect(() => {
     if (visible) {
       // Show the modal immediately
@@ -44,21 +46,23 @@ export default function AnimatedAlert({
 
       // Then animate in
       setTimeout(() => {
-        opacity.value = withTiming(1, { duration: 200 });
+        opacity.value = withTiming(1, { duration: 300 });
         scale.value = withSpring(1, { damping: 15 });
-      }, 10);
+      }, 50);
     } else {
-      // Hide immediately when not visible
-      opacity.value = 0;
-      scale.value = 0.8;
-      setModalVisible(false);
-
-      // Call onDismiss after a short delay
-      if (onDismiss) {
-        setTimeout(() => {
+      // Animate out first
+      opacity.value = withTiming(0, { duration: 200 });
+      scale.value = withSpring(0.8, { damping: 15 });
+      
+      // Then hide modal after animation completes
+      setTimeout(() => {
+        setModalVisible(false);
+        
+        // Call onDismiss after modal is hidden
+        if (onDismiss) {
           onDismiss();
-        }, 100);
-      }
+        }
+      }, 300);
     }
   }, [visible, opacity, scale, onDismiss]);
 
@@ -76,17 +80,29 @@ export default function AnimatedAlert({
   });
 
   const handleConfirm = () => {
-    // Call confirm handler directly
-    if (onConfirm) {
-      onConfirm();
-    }
+    // Primero animamos la salida
+    opacity.value = withTiming(0, { duration: 200 });
+    scale.value = withSpring(0.8, { damping: 15 });
+    
+    // Luego llamamos al handler después de la animación
+    setTimeout(() => {
+      if (onConfirm) {
+        onConfirm();
+      }
+    }, 200);
   };
 
   const handleCancel = () => {
-    // Call cancel handler directly
-    if (onCancel) {
-      onCancel();
-    }
+    // Primero animamos la salida
+    opacity.value = withTiming(0, { duration: 200 });
+    scale.value = withSpring(0.8, { damping: 15 });
+    
+    // Luego llamamos al handler después de la animación
+    setTimeout(() => {
+      if (onCancel) {
+        onCancel();
+      }
+    }, 200);
   };
 
   return (
@@ -95,6 +111,8 @@ export default function AnimatedAlert({
       animationType="none"
       transparent={true}
       onRequestClose={handleCancel}
+      statusBarTranslucent={true}
+      hardwareAccelerated={true}
     >
       <Animated.View
         className="flex-1 items-center justify-center"

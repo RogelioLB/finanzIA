@@ -33,11 +33,14 @@ export default function AccountItem({
       className="bg-white rounded-lg p-4 flex-row justify-between items-center my-1"
       entering={entering}
     >
-      <View>
-        <Text className="text-lg font-bold">{account.name}</Text>
-        <Text className="text-gray-500">
-          {account.balance} {account.currency}
-        </Text>
+      <View className="flex-row items-center gap-5">
+        <Ionicons name={account.icon as any} size={24} color="black" />
+        <View>
+          <Text className="text-lg font-bold">{account.name}</Text>
+          <Text className="text-gray-500">
+            {account.balance} {account.currency}
+          </Text>
+        </View>
       </View>
       <Menu>
         <MenuTrigger
