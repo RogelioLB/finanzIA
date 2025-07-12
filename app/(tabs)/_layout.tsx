@@ -1,45 +1,65 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform } from 'react-native';
+import { AnimatedTabButton } from "@/components/AnimatedTabButton";
+import { usePathname } from "expo-router";
+import { TabList, Tabs, TabSlot, TabTrigger } from "expo-router/ui";
+import { Platform, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { HapticTab } from '@/components/HapticTab';
-import { IconSymbol } from '@/components/ui/IconSymbol';
-import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
-
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+// Defining the layout of the custom tab navigator
+export default function Layout() {
+  const pathname = usePathname();
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarBackground: TabBarBackground,
-        tabBarStyle: Platform.select({
-          ios: {
-            // Use a transparent background on iOS to show the blur effect
-            position: 'absolute',
-          },
-          default: {},
-        }),
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
+    <Tabs>
+      <TabSlot />
+      <SafeAreaView
+        edges={["bottom"]}
+        className="absolute bottom-0 left-8 right-8"
+      >
+        <View
+          className={`flex-row justify-around items-center py-3 px-4 bg-[#7952FC] rounded-full h-20 ${
+            Platform.OS === "android" ? "mb-2" : ""
+          }`}
+        >
+          <AnimatedTabButton
+            name="Inicio"
+            icon="home"
+            href="/"
+            isActive={pathname === "/"}
+          />
+          <AnimatedTabButton
+            name="Statistic"
+            icon="statistics"
+            href="/statistic"
+            isActive={pathname === "/statistic"}
+          />
+          <AnimatedTabButton
+            name="AI Plan"
+            icon="ai-plan"
+            href="/ai-plan"
+            isActive={pathname === "/ai-plan"}
+          />
+          <AnimatedTabButton
+            name="Accounts"
+            icon="accounts"
+            customIcon="cash-sharp"
+            href="/accounts"
+            isActive={pathname === "/accounts"}
+          />
+          <AnimatedTabButton
+            name="Profile"
+            icon="profile"
+            href="/profile"
+            isActive={pathname === "/profile"}
+          />
+        </View>
+      </SafeAreaView>
+      <TabList style={{ display: "none" }}>
+        <TabTrigger name="inicio" href="/" />
+        <TabTrigger name="statistic" href="/statistic" />
+        <TabTrigger name="ai plan" href="/ai-plan" />
+        <TabTrigger name="accounts" href="/accounts" />
+        <TabTrigger name="profile" href="/profile" />
+      </TabList>
     </Tabs>
   );
 }
