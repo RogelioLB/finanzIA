@@ -6,30 +6,35 @@ const quickActions: {
   icon: IconProps["name"];
   color: string;
   text: string;
+  href?: string;
 }[] = [
   {
     name: "transfer",
     icon: "transfer",
     color: "#7952FC",
     text: "Transfer",
+    href: "/accounts/transfer",
   },
   {
-    name: "ai-plan",
-    icon: "ai-plan",
+    name: "subscription",
+    icon: "subscription",
     color: "#7952FC",
-    text: "AI Plan",
+    text: "Subscriptions",
+    href: "/subscriptions",
   },
   {
     name: "add-balance",
     icon: "add-balance",
     color: "#7952FC",
     text: "Add Balance",
+    href: "/accounts/add-balance",
   },
   {
     name: "spend",
     icon: "spend",
     color: "#7952FC",
     text: "Spend",
+    href: "/accounts/spend",
   },
 ];
 
@@ -41,7 +46,7 @@ export default function QuickActions() {
         <TouchableOpacity
           key={action.name}
           onPress={() => {
-            router.push("/accounts/transfer");
+            router.push((action.href || "/accounts/" + action.name) as any);
           }}
           className="flex-col justify-center items-center gap-1"
         >

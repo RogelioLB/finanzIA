@@ -104,6 +104,51 @@ export async function initDatabase() {
           Date.now(),
         ]
       );
+      await db.runAsync(`
+        CREATE TABLE IF NOT EXISTS subscriptions (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        amount REAL NOT NULL,
+        frequency TEXT NOT NULL, -- daily, weekly, monthly, yearly
+        next_payment_date INTEGER NOT NULL,
+        account_id TEXT NOT NULL,
+        category_id TEXT,
+        description TEXT,
+        allow_notifications INTEGER DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        is_deleted INTEGER DEFAULT 0,
+        sync_status TEXT DEFAULT 'local',
+        last_synced_at INTEGER,
+        FOREIGN KEY (account_id) REFERENCES accounts(id),
+        FOREIGN KEY (category_id) REFERENCES categories(id)
+    );
+`);
+
+      await db.runAsync(`
+        CREATE TABLE IF NOT EXISTS debts (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    amount REAL NOT NULL,
+    due_date INTEGER,
+    interest_rate REAL DEFAULT 0,
+    paid_amount REAL DEFAULT 0,
+    account_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    is_deleted INTEGER DEFAULT 0,
+    sync_status TEXT DEFAULT 'local',
+    last_synced_at INTEGER,
+    FOREIGN KEY (account_id) REFERENCES accounts(id)
+);
+`);
+
+      await db.runAsync(`
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+`);
     });
     resolve();
   });

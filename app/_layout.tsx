@@ -11,10 +11,12 @@ import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
 
+import { AccountsProvider } from "@/contexts/AccountsContext";
+import { SubscriptionsProvider } from "@/contexts/SubscriptionsContext";
+import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { initDatabase } from "@/lib/database/database";
 import { SQLiteProvider } from "expo-sqlite";
-import { AccountsProvider } from "@/contexts/AccountsContext";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -42,33 +44,46 @@ export default function RootLayout() {
             }}
           >
             <AccountsProvider>
-              <Stack
-                screenOptions={{
-                  animation: "slide_from_right",
-                  animationDuration: 300,
-                  headerShown: false,
-                }}
-              >
-                <Stack.Screen
-                  name="(tabs)"
-                  options={{
+              <SubscriptionsProvider>
+                <NotificationsProvider>
+                <Stack
+                  screenOptions={{
+                    animation: "slide_from_right",
+                    animationDuration: 300,
                     headerShown: false,
-                    animation: "fade",
-                    animationDuration: 250,
                   }}
-                />
-                <Stack.Screen
-                  name="accounts"
-                  options={{
-                    title: "Accounts",
-                    headerShown: false,
-                    animation: "fade_from_bottom",
-                    animationDuration: 250,
-                  }}
-                />
-                <Stack.Screen name="+not-found" />
-              </Stack>
-              <StatusBar style="auto" />
+                >
+                  <Stack.Screen
+                    name="(tabs)"
+                    options={{
+                      headerShown: false,
+                      animation: "fade",
+                      animationDuration: 250,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="accounts"
+                    options={{
+                      title: "Accounts",
+                      headerShown: false,
+                      animation: "fade_from_bottom",
+                      animationDuration: 250,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="subscriptions"
+                    options={{
+                      title: "Subscriptions",
+                      headerShown: false,
+                      animation: "fade_from_bottom",
+                      animationDuration: 250,
+                    }}
+                  />
+                  <Stack.Screen name="+not-found" />
+                </Stack>
+                <StatusBar style="auto" />
+                </NotificationsProvider>
+              </SubscriptionsProvider>
             </AccountsProvider>
           </SQLiteProvider>
         </ThemeProvider>

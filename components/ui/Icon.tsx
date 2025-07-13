@@ -1,3 +1,4 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import React from "react";
 import AddBalanceIcon from "../icons/add-balance";
 import AiPlanIcon from "../icons/ai-plan";
@@ -28,6 +29,8 @@ export default function Icon({ name, size, color }: IconProps) {
       return <AddBalanceIcon width={size} height={size} fill={color} />;
     case "spend":
       return <PaymentIcon width={size} height={size} fill={color} />;
+    case "subscription":
+      return <MaterialIcons name="subscriptions" size={size} color={color} />;
   }
 }
 
@@ -41,7 +44,8 @@ export interface IconProps {
     | "notification"
     | "transfer"
     | "add-balance"
-    | "spend";
+    | "spend"
+    | "subscription";
   size: number;
   color: string;
 }

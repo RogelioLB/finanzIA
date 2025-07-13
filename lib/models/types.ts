@@ -46,6 +46,21 @@ export interface Transaction extends BaseModel {
   to_account_id?: string; // Solo para transferencias
 }
 
+// Tipo de frecuencia de suscripción
+export type SubscriptionFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+// Suscripción
+export interface Subscription extends BaseModel {
+  name: string;
+  amount: number;
+  frequency: SubscriptionFrequency;
+  next_payment_date: number;
+  account_id: string;
+  category_id?: string;
+  description?: string;
+  allow_notifications: number; // 1 para permitir, 0 para no permitir
+}
+
 // Tipo para las estadísticas
 export interface TransactionSummary {
   categoryName: string;

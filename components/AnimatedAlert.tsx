@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Modal, Text, TouchableOpacity, View } from "react-native";
 import Animated, {
   interpolate,
@@ -36,72 +36,63 @@ export default function AnimatedAlert({
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.8);
   const [modalVisible, setModalVisible] = useState(false);
-
-
+  const wasShown = useRef(false);
+  const confirmTriggered = useRef(false);
+  const cancelTriggered = useRef(false);
 
   useEffect(() => {
     if (visible) {
-      // Show the modal immediately
+      wasShown.current = true;
       setModalVisible(true);
-
-      // Then animate in
       setTimeout(() => {
         opacity.value = withTiming(1, { duration: 300 });
         scale.value = withSpring(1, { damping: 15 });
       }, 50);
     } else {
-      // Animate out first
       opacity.value = withTiming(0, { duration: 200 });
       scale.value = withSpring(0.8, { damping: 15 });
-      
-      // Then hide modal after animation completes
       setTimeout(() => {
         setModalVisible(false);
-        
-        // Call onDismiss after modal is hidden
-        if (onDismiss) {
+        if (wasShown.current && onDismiss) {
+          wasShown.current = false;
           onDismiss();
         }
       }, 300);
     }
   }, [visible, opacity, scale, onDismiss]);
 
-  const overlayStyle = useAnimatedStyle(() => {
-    return {
-      opacity: opacity.value,
-    };
-  });
+  const overlayStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
 
-  const alertStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: scale.value }],
-      opacity: interpolate(scale.value, [0.8, 1], [0, 1]),
-    };
-  });
+  const alertStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: interpolate(scale.value, [0.8, 1], [0, 1]),
+  }));
 
   const handleConfirm = () => {
-    // Primero animamos la salida
+    if (confirmTriggered.current) return;
+    confirmTriggered.current = true;
+
     opacity.value = withTiming(0, { duration: 200 });
     scale.value = withSpring(0.8, { damping: 15 });
-    
-    // Luego llamamos al handler después de la animación
+
     setTimeout(() => {
-      if (onConfirm) {
-        onConfirm();
-      }
+      if (onConfirm) onConfirm();
+      confirmTriggered.current = false;
     }, 200);
   };
 
   const handleCancel = () => {
-    // Primero animamos la salida
+    if (cancelTriggered.current) return;
+    cancelTriggered.current = true;
+
     opacity.value = withTiming(0, { duration: 200 });
     scale.value = withSpring(0.8, { damping: 15 });
-    
-    // Luego llamamos al handler después de la animación
+
     setTimeout(() => {
-      if (onCancel) {
-        onCancel();
-      }
+      if (onCancel) onCancel();
+      cancelTriggered.current = false;
     }, 200);
   };
 
