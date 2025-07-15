@@ -2,7 +2,7 @@ import "react-native-get-random-values";
 import uuid from "react-native-uuid";
 import { Subscription, SubscriptionFrequency } from "../models/types";
 import { openDatabase } from "./database";
-import { scheduleSubscriptionNotification, cancelSubscriptionNotification } from "../services/notificationService";
+//import { scheduleSubscriptionNotification, cancelSubscriptionNotification } from "../services/notificationService";
 
 /**
  * Obtiene todas las suscripciones activas
@@ -101,7 +101,7 @@ export const createSubscription = async (
 
       // Programar notificación si están habilitadas
       if (newSubscription.allow_notifications) {
-        await scheduleSubscriptionNotification(newSubscription);
+        //await scheduleSubscriptionNotification(newSubscription);
       }
 
       resolve(newSubscription);
@@ -170,13 +170,15 @@ export const updateSubscription = async (
       // - Si las notificaciones están habilitadas, programarlas
       // - Si las notificaciones están deshabilitadas, cancelarlas
       // - Si se ha actualizado la fecha de pago o la frecuencia, reprogramar
-      if (subscription.allow_notifications !== undefined || 
-          subscription.next_payment_date !== undefined || 
-          subscription.frequency !== undefined) {
+      if (
+        subscription.allow_notifications !== undefined ||
+        subscription.next_payment_date !== undefined ||
+        subscription.frequency !== undefined
+      ) {
         if (updatedSubscription.allow_notifications) {
-          await scheduleSubscriptionNotification(updatedSubscription);
+          //await scheduleSubscriptionNotification(updatedSubscription);
         } else {
-          await cancelSubscriptionNotification(updatedSubscription.id);
+          //await cancelSubscriptionNotification(updatedSubscription.id);
         }
       }
 
@@ -195,8 +197,8 @@ export const deleteSubscription = async (id: string): Promise<void> => {
   return new Promise(async (resolve, reject) => {
     try {
       // Cancelar la notificación asociada a esta suscripción
-      await cancelSubscriptionNotification(id);
-      
+      //await cancelSubscriptionNotification(id);
+
       const db = openDatabase();
       await db.runAsync(
         `UPDATE subscriptions SET is_deleted = 1, updated_at = ? WHERE id = ?`,

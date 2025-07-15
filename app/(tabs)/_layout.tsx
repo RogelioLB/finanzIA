@@ -1,24 +1,32 @@
 import { AnimatedTabButton } from "@/components/AnimatedTabButton";
-import { usePathname } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { usePathname, useRouter } from "expo-router";
 import { TabList, Tabs, TabSlot, TabTrigger } from "expo-router/ui";
-import { Platform, View } from "react-native";
+import { TouchableHighlight, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // Defining the layout of the custom tab navigator
 export default function Layout() {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <Tabs>
-      <TabSlot />
-      <SafeAreaView
-        edges={["bottom"]}
-        className="absolute bottom-0 left-8 right-8"
-      >
+      <View className="flex-1 relative">
+        <TabSlot />
+        <TouchableHighlight
+          onPress={() => {
+            // Using type assertion to bypass type checking for external route
+            router.navigate("/add-transaction" as any);
+          }}
+          className="absolute bottom-10 right-8 z-10 bg-indigo-800 rounded-md p-3 "
+        >
+          <Ionicons name="add" size={24} color="white" />
+        </TouchableHighlight>
+      </View>
+      <SafeAreaView edges={["bottom"]}>
         <View
-          className={`flex-row justify-around items-center py-3 px-4 bg-[#7952FC] rounded-full h-20 ${
-            Platform.OS === "android" ? "mb-2" : ""
-          }`}
+          className={`flex-row justify-around items-center py-4 px-4 bg-[#7952FC] rounded-t-xl`}
         >
           <AnimatedTabButton
             name="Inicio"
@@ -27,10 +35,12 @@ export default function Layout() {
             isActive={pathname === "/"}
           />
           <AnimatedTabButton
-            name="Statistic"
-            icon="statistics"
-            href="/statistic"
-            isActive={pathname === "/statistic"}
+            name="Transacciones"
+            customIcon="cash-outline"
+            href="/transactions/index"
+            isActive={
+              pathname === "/transactions" || pathname === "/transactions/index"
+            }
           />
           <AnimatedTabButton
             name="AI Plan"
@@ -38,27 +48,13 @@ export default function Layout() {
             href="/ai-plan"
             isActive={pathname === "/ai-plan"}
           />
-          <AnimatedTabButton
-            name="Accounts"
-            icon="accounts"
-            customIcon="cash-sharp"
-            href="/accounts"
-            isActive={pathname === "/accounts"}
-          />
-          <AnimatedTabButton
-            name="Profile"
-            icon="profile"
-            href="/profile"
-            isActive={pathname === "/profile"}
-          />
         </View>
       </SafeAreaView>
+
       <TabList style={{ display: "none" }}>
         <TabTrigger name="inicio" href="/" />
-        <TabTrigger name="statistic" href="/statistic" />
+        <TabTrigger name="transacciones" href="/transactions/index" />
         <TabTrigger name="ai plan" href="/ai-plan" />
-        <TabTrigger name="accounts" href="/accounts" />
-        <TabTrigger name="profile" href="/profile" />
       </TabList>
     </Tabs>
   );

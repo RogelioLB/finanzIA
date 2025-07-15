@@ -11,15 +11,21 @@ import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
 
-import { AccountsProvider } from "@/contexts/AccountsContext";
-import { SubscriptionsProvider } from "@/contexts/SubscriptionsContext";
-import { NotificationsProvider } from "@/contexts/NotificationsContext";
+import { AddTransactionProvider } from "@/contexts/AddTransactionContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
-import { initDatabase } from "@/lib/database/database";
-import { SQLiteProvider } from "expo-sqlite";
+import * as NavigationBar from "expo-navigation-bar";
+import { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    NavigationBar.setBackgroundColorAsync("#7952FC");
+    NavigationBar.setButtonStyleAsync("light");
+    NavigationBar.setPositionAsync("absolute");
+  }, []);
+
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
@@ -32,61 +38,58 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider style={{ backgroundColor: "#FAFAFA" }}>
       <MenuProvider>
-        <ThemeProvider
-          value={colorScheme !== "dark" ? DarkTheme : DefaultTheme}
-        >
-          <SQLiteProvider
-            databaseName="finance.db"
-            onInit={async () => {
-              console.log("Database initialized");
-              await initDatabase();
-              console.log("Database initialized");
-            }}
+        <AddTransactionProvider>
+          <ThemeProvider
+            value={colorScheme !== "dark" ? DarkTheme : DefaultTheme}
           >
-            <AccountsProvider>
-              <SubscriptionsProvider>
-                <NotificationsProvider>
-                <Stack
-                  screenOptions={{
-                    animation: "slide_from_right",
-                    animationDuration: 300,
+            <GestureHandlerRootView>
+              <Stack
+                screenOptions={{
+                  animation: "slide_from_right",
+                  animationDuration: 300,
+                  headerShown: false,
+                }}
+              >
+                <Stack.Screen
+                  name="(tabs)"
+                  options={{
                     headerShown: false,
+                    animation: "fade",
+                    animationDuration: 250,
                   }}
-                >
-                  <Stack.Screen
-                    name="(tabs)"
-                    options={{
-                      headerShown: false,
-                      animation: "fade",
-                      animationDuration: 250,
-                    }}
-                  />
-                  <Stack.Screen
-                    name="accounts"
-                    options={{
-                      title: "Accounts",
-                      headerShown: false,
-                      animation: "fade_from_bottom",
-                      animationDuration: 250,
-                    }}
-                  />
-                  <Stack.Screen
-                    name="subscriptions"
-                    options={{
-                      title: "Subscriptions",
-                      headerShown: false,
-                      animation: "fade_from_bottom",
-                      animationDuration: 250,
-                    }}
-                  />
-                  <Stack.Screen name="+not-found" />
-                </Stack>
-                <StatusBar style="auto" />
-                </NotificationsProvider>
-              </SubscriptionsProvider>
-            </AccountsProvider>
-          </SQLiteProvider>
-        </ThemeProvider>
+                />
+                <Stack.Screen
+                  name="accounts"
+                  options={{
+                    title: "Accounts",
+                    headerShown: false,
+                    animation: "fade_from_bottom",
+                    animationDuration: 250,
+                  }}
+                />
+                <Stack.Screen
+                  name="add-transaction"
+                  options={{
+                    headerShown: false,
+                    animation: "fade_from_bottom",
+                    animationDuration: 250,
+                  }}
+                />
+                <Stack.Screen
+                  name="subscriptions"
+                  options={{
+                    title: "Subscriptions",
+                    headerShown: false,
+                    animation: "fade_from_bottom",
+                    animationDuration: 250,
+                  }}
+                />
+                <Stack.Screen name="+not-found" />
+              </Stack>
+              <StatusBar style="auto" />
+            </GestureHandlerRootView>
+          </ThemeProvider>
+        </AddTransactionProvider>
       </MenuProvider>
     </SafeAreaProvider>
   );

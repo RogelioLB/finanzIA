@@ -12,8 +12,8 @@ import Icon from "./ui/Icon";
 
 type AnimatedTabButtonProps = {
   name: string;
-  icon: "home" | "statistics" | "ai-plan" | "accounts" | "profile";
-  href: "/" | "/explore" | "/statistic" | "/ai-plan" | "/accounts" | "/profile";
+  icon?: "home" | "statistics" | "ai-plan" | "accounts" | "profile" | "notification" | "transfer" | "add-balance" | "spend" | "subscription";
+  href: string;
   isActive: boolean;
   customIcon?: string;
 };
@@ -71,7 +71,7 @@ export function AnimatedTabButton({
         }}
       >
         <Animated.View style={[animatedStyles]}>
-          {customIcon ? (
+          {customIcon || icon === undefined ? (
             <Ionicons
               name={customIcon as any}
               size={24}
