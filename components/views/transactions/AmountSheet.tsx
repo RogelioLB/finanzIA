@@ -56,7 +56,7 @@ export default function AmountSheet({
         <Text className="text-5xl font-bold text-right">${amount}</Text>
       </View>
       {/* Numeric keypad */}
-      <View className="flex-row flex-wrap justify-between bg-slate-300 rounded-xl my-4">
+      <View className="flex-row flex-wrap justify-between bg-slate-500 rounded-xl my-4">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "⌫"].map(
           (key) => (
             <TouchableOpacity
@@ -80,7 +80,7 @@ export default function AmountSheet({
         className="bg-primary py-4 rounded-xl"
         onPress={handleDonePress}
       >
-        <Text className="text-black text-center font-bold">Completar</Text>
+        <Text className="text-white text-center font-bold">Completar</Text>
       </TouchableOpacity>
     </BottomSheetBase>
   );

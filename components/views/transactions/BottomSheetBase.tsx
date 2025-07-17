@@ -1,5 +1,10 @@
 import React, { ReactNode, useCallback, useEffect, useRef } from "react";
-import { Dimensions, TouchableWithoutFeedback, View } from "react-native";
+import {
+  Dimensions,
+  Keyboard,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   interpolate,
@@ -40,6 +45,7 @@ export default function BottomSheetBase({
   const close = useCallback(() => {
     translateY.value = withSpring(SCREEN_HEIGHT, { damping: 50 });
     overlayOpacity.value = withSpring(0);
+    Keyboard.dismiss();
     if (onClose) {
       runOnJS(onClose)();
     }

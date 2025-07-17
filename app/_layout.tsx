@@ -54,7 +54,6 @@ export default function RootLayout() {
                   name="(tabs)"
                   options={{
                     headerShown: false,
-                    animation: "fade",
                     animationDuration: 250,
                   }}
                 />
@@ -71,7 +70,6 @@ export default function RootLayout() {
                   name="add-transaction"
                   options={{
                     headerShown: false,
-                    animation: "fade_from_bottom",
                     animationDuration: 250,
                   }}
                 />

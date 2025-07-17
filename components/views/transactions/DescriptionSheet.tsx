@@ -39,9 +39,9 @@ export default function DescriptionSheet({
           Describe tu transacción
         </Text>
         <TextInput
-          className="bg-white bg-opacity-10 rounded-xl text-white p-4 mb-2"
+          className="bg-primary/30 rounded-xl text-black p-4 mb-2 "
           placeholder="Descripción (opcional)"
-          placeholderTextColor="rgba(255, 255, 255, 0.6)"
+          placeholderTextColor="black"
           value={description}
           onChangeText={setDescription}
         />

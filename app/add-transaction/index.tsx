@@ -100,7 +100,7 @@ export default function AddTransactionScreen() {
 
       {/* Header */}
       <View className="flex-row items-center pt-12 px-5 pb-4">
-        <TouchableOpacity className="mr-4" onPress={() => router.push("/")}>
+        <TouchableOpacity className="mr-4" onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color="black" />
         </TouchableOpacity>
         <Text className="text-xl font-bold text-black">
