@@ -1,4 +1,4 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import React from "react";
 import AddBalanceIcon from "../icons/add-balance";
 import AiPlanIcon from "../icons/ai-plan";
@@ -31,6 +31,8 @@ export default function Icon({ name, size, color }: IconProps) {
       return <PaymentIcon width={size} height={size} fill={color} />;
     case "subscription":
       return <MaterialIcons name="subscriptions" size={size} color={color} />;
+    case "wallet":
+      return <Ionicons name="wallet" size={size} color={color} />;
   }
 }
 
@@ -45,7 +47,8 @@ export interface IconProps {
     | "transfer"
     | "add-balance"
     | "spend"
-    | "subscription";
+    | "subscription"
+    | "wallet";
   size: number;
   color: string;
 }

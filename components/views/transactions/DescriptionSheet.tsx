@@ -21,11 +21,16 @@ export default function DescriptionSheet({
   visible,
 }: DescriptionSheetProps) {
   // Usamos el estado compartido del contexto
-  const { description, setDescription } = useAddTransaction();
+  const { title, setTitle } = useAddTransaction();
 
   const handleNext = () => {
-    Keyboard.dismiss();
-    onNext(description);
+    // Procesar el siguiente paso
+    onNext(title);
+
+    // Cerrar el teclado después de un breve delay
+    setTimeout(() => {
+      Keyboard.dismiss();
+    }, 50);
   };
 
   return (
@@ -42,8 +47,10 @@ export default function DescriptionSheet({
           className="bg-primary/30 rounded-xl text-black p-4 mb-2 "
           placeholder="Descripción (opcional)"
           placeholderTextColor="black"
-          value={description}
-          onChangeText={setDescription}
+          value={title}
+          onChangeText={setTitle}
+          returnKeyType="next"
+          onSubmitEditing={handleNext}
         />
         <Text className="text-gray-400 text-xs">
           Por ejemplo: Compras del supermercado, Pago de servicios, etc.

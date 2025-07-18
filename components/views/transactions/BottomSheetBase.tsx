@@ -7,12 +7,15 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  cancelAnimation,
+  Easing,
   interpolate,
   runOnJS,
   useAnimatedKeyboard,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from "react-native-reanimated";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -38,14 +41,45 @@ export default function BottomSheetBase({
 
   // Define open and close functions first
   const open = useCallback(() => {
-    translateY.value = withSpring(0, { damping: 50 });
-    overlayOpacity.value = withSpring(0.5);
+    "worklet";
+    cancelAnimation(translateY);
+    cancelAnimation(overlayOpacity);
+
+    translateY.value = withSpring(0, {
+      damping: 20,
+      mass: 0.8,
+      overshootClamping: false,
+      restDisplacementThreshold: 0.01,
+      restSpeedThreshold: 0.01,
+    });
+    overlayOpacity.value = withTiming(0.5, {
+      duration: 200,
+      easing: Easing.out(Easing.quad),
+    });
   }, [translateY, overlayOpacity]);
 
   const close = useCallback(() => {
-    translateY.value = withSpring(SCREEN_HEIGHT, { damping: 50 });
-    overlayOpacity.value = withSpring(0);
-    Keyboard.dismiss();
+    "worklet";
+    cancelAnimation(translateY);
+    cancelAnimation(overlayOpacity);
+
+    translateY.value = withSpring(SCREEN_HEIGHT, {
+      damping: 25,
+      stiffness: 400,
+      mass: 0.6,
+      overshootClamping: true,
+      restDisplacementThreshold: 0.01,
+      restSpeedThreshold: 0.01,
+    });
+    overlayOpacity.value = withTiming(0, {
+      duration: 150,
+      easing: Easing.in(Easing.quad),
+    });
+
+    // Solo cerrar el teclado si el bottom sheet estaba realmente abierto
+    if (translateY.value < SCREEN_HEIGHT * 0.5) {
+      runOnJS(Keyboard.dismiss)();
+    }
     if (onClose) {
       runOnJS(onClose)();
     }
@@ -59,9 +93,13 @@ export default function BottomSheetBase({
   // Gesture for the bottom sheet
   const gesture = Gesture.Pan()
     .onStart(() => {
+      "worklet";
       context.value = { y: translateY.value };
+      cancelAnimation(translateY);
+      cancelAnimation(overlayOpacity);
     })
     .onUpdate((event) => {
+      "worklet";
       // Only allow moving down, not up beyond content height
       const newTranslateY = event.translationY + context.value.y;
       if (newTranslateY >= 0) {
@@ -72,19 +110,35 @@ export default function BottomSheetBase({
         overlayOpacity.value = interpolate(
           translateY.value,
           [0, SCREEN_HEIGHT],
-          [0.5, 0] // From 0.5 opacity to 0
+          [0.5, 0], // From 0.5 opacity to 0
+          "clamp"
         );
       }
     })
     .onEnd((event) => {
-      // If dragged down beyond threshold, close the sheet
-      if (translateY.value > SCREEN_HEIGHT * 0.2) {
+      "worklet";
+      const velocity = event.velocityY;
+      const shouldClose =
+        translateY.value > SCREEN_HEIGHT * 0.2 || velocity > 500;
+
+      if (shouldClose) {
         // Must use runOnJS since we're calling a JS function from UI thread
         runOnJS(close)();
       } else {
-        // Otherwise snap back to initial position
-        translateY.value = withSpring(0, { damping: 50 });
-        overlayOpacity.value = withSpring(0.5);
+        // Otherwise snap back to initial position with spring animation
+        translateY.value = withSpring(0, {
+          damping: 20,
+          stiffness: 300,
+          mass: 0.8,
+          velocity: velocity,
+          overshootClamping: false,
+          restDisplacementThreshold: 0.01,
+          restSpeedThreshold: 0.01,
+        });
+        overlayOpacity.value = withTiming(0.5, {
+          duration: 100,
+          easing: Easing.out(Easing.quad),
+        });
       }
     });
 
@@ -131,7 +185,12 @@ export default function BottomSheetBase({
         style={overlayStyle}
         pointerEvents={visible ? "auto" : "none"}
       >
-        <TouchableWithoutFeedback onPress={close}>
+        <TouchableWithoutFeedback 
+          onPress={() => {
+            Keyboard.dismiss();
+            close();
+          }}
+        >
           <View className="w-full h-full" />
         </TouchableWithoutFeedback>
       </Animated.View>

@@ -1,65 +1,164 @@
+import { Category } from "@/contexts/CategoriesContext";
+import { useSQLiteService, Wallet } from "@/lib/database/sqliteService";
 import React, { createContext, ReactNode, useContext, useState } from "react";
-import { Category } from "../components/views/transactions/CategorySheet";
+import { useTransactions } from "./TransactionsContext";
+import { useWallets } from "./WalletsContext";
 
 export interface TransactionData {
-  description: string;
+  title: string;
+  note?: string;
   category: Category | null;
   type: "expense" | "income";
   amount: string;
+  wallet_id: string;
 }
 
 interface AddTransactionContextType {
-  description: string;
-  setDescription: (description: string) => void;
+  title: string;
+  setTitle: (title: string) => void;
+  note: string;
+  setNote: (note: string) => void;
   category: Category | null;
   setCategory: (category: Category | null) => void;
   type: "expense" | "income";
   setType: (type: "expense" | "income") => void;
   amount: string;
   setAmount: (amount: string) => void;
+  wallets: Wallet[];
+  selectedWallet: Wallet | null;
+  setSelectedWallet: (wallet: Wallet | null) => void;
+  isLoading: boolean;
+  isCreating: boolean;
+  createTransaction: () => Promise<boolean>;
   resetTransaction: () => void;
 }
 
 const defaultContextValue: AddTransactionContextType = {
-  description: "",
-  setDescription: () => {},
+  title: "",
+  setTitle: () => {},
+  note: "",
+  setNote: () => {},
   category: null,
   setCategory: () => {},
   type: "expense",
   setType: () => {},
   amount: "0",
   setAmount: () => {},
+  wallets: [],
+  selectedWallet: null,
+  setSelectedWallet: () => {},
+  isLoading: false,
+  isCreating: false,
+  createTransaction: async () => false,
   resetTransaction: () => {},
 };
 
-const AddTransactionContext = createContext<AddTransactionContextType>(defaultContextValue);
+const AddTransactionContext =
+  createContext<AddTransactionContextType>(defaultContextValue);
 
 export const useAddTransaction = () => useContext(AddTransactionContext);
 
-export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [description, setDescription] = useState<string>("");
+export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
+  // Estados para la transacción
+  const [title, setTitle] = useState<string>("");
+  const [note, setNote] = useState<string>("");
   const [category, setCategory] = useState<Category | null>(null);
   const [type, setType] = useState<"expense" | "income">("expense");
   const [amount, setAmount] = useState<string>("0");
+  const [isCreating, setIsCreating] = useState<boolean>(false);
+
+  const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);
+  const { wallets, isLoading, refreshWallets } = useWallets();
+  const { refreshTransactions } = useTransactions();
+  const { createTransaction: createTransactionDB } = useSQLiteService();
+
+  const createTransaction = async (): Promise<boolean> => {
+    if (!selectedWallet || parseFloat(amount) <= 0) {
+      return false;
+    }
+    console.log({
+      wallet_id: selectedWallet.id,
+      amount: parseFloat(amount),
+      type: type,
+      title: title.trim(),
+      note: note.trim() || undefined,
+      category_id: category?.id,
+      timestamp: Date.now(),
+    });
+
+    try {
+      setIsCreating(true);
+
+      // Validar que el título no esté vacío, SI ESTA VACIO TOMAR EL NOMBRE DE LA CATEGORIA
+      if (!title.trim()) {
+        await createTransactionDB({
+          wallet_id: selectedWallet.id,
+          amount: parseFloat(amount),
+          type: type,
+          title: category?.name || "",
+          note: note.trim() || undefined,
+          category_id: category?.id,
+          timestamp: Date.now(),
+        });
+      } else {
+        await createTransactionDB({
+          wallet_id: selectedWallet.id,
+          amount: parseFloat(amount),
+          type: type,
+          title: title.trim() || "",
+          note: note.trim() || undefined,
+          category_id: category?.id,
+          timestamp: Date.now(),
+        });
+      }
+
+      // Crear la transacción usando el nuevo schem
+
+      // Refrescar las wallets para actualizar los balances
+      await refreshWallets();
+
+      // Refrescar las transacciones para mostrar la nueva
+      await refreshTransactions();
+
+      return true;
+    } catch (error) {
+      console.error("Error creating transaction:", error);
+      return false;
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   const resetTransaction = () => {
-    setDescription("");
+    setTitle("");
+    setNote("");
     setCategory(null);
     setType("expense");
     setAmount("0");
+    // Mantener la wallet seleccionada para la próxima transacción
   };
 
   return (
     <AddTransactionContext.Provider
       value={{
-        description,
-        setDescription,
+        title,
+        setTitle,
+        note,
+        setNote,
         category,
         setCategory,
         type,
         setType,
         amount,
         setAmount,
+        wallets: wallets as Wallet[],
+        selectedWallet,
+        setSelectedWallet,
+        isLoading,
+        isCreating,
+        createTransaction,
         resetTransaction,
       }}
     >

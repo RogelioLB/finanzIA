@@ -17,7 +17,7 @@ export default function Layout() {
         <TouchableHighlight
           onPress={() => {
             // Using type assertion to bypass type checking for external route
-            router.navigate("/add-transaction" as any);
+            router.navigate("/add-transaction");
           }}
           className="absolute bottom-10 right-8 z-10 bg-indigo-800 rounded-md p-3 "
         >
@@ -48,6 +48,12 @@ export default function Layout() {
             href="/ai-plan"
             isActive={pathname === "/ai-plan"}
           />
+          <AnimatedTabButton
+            name="More"
+            customIcon="dot"
+            href="/more"
+            isActive={pathname === "/more"}
+          />
         </View>
       </SafeAreaView>
 
@@ -55,6 +61,7 @@ export default function Layout() {
         <TabTrigger name="inicio" href="/" />
         <TabTrigger name="transacciones" href="/transactions/index" />
         <TabTrigger name="ai plan" href="/ai-plan" />
+        <TabTrigger name="more" href="/more" />
       </TabList>
     </Tabs>
   );

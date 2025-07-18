@@ -25,19 +25,22 @@ export default function TransactionFlow({
 
   // Usar el contexto compartido para los datos
   const {
-    description, 
-    setDescription, 
-    category, 
-    setCategory, 
-    type, 
-    setType, 
-    amount, 
-    setAmount
+    title,
+    setTitle,
+    note,
+    setNote,
+    category,
+    setCategory,
+    type,
+    setType,
+    amount,
+    setAmount,
+    selectedWallet,
   } = useAddTransaction();
 
   // Handle description submission
   const handleDescriptionNext = (description: string) => {
-    setDescription(description);
+    setTitle(description);
     setStep("category");
   };
 
@@ -55,10 +58,12 @@ export default function TransactionFlow({
   const handleAmountComplete = (amount: string) => {
     setAmount(amount);
     onComplete({
-      description,
+      title,
+      note,
       category,
       type,
       amount,
+      wallet_id: selectedWallet?.id || "",
     });
   };
 

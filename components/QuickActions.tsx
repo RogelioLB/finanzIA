@@ -13,7 +13,7 @@ const quickActions: {
     icon: "transfer",
     color: "#7952FC",
     text: "Transfer",
-    href: "/accounts/transfer",
+    href: "/wallets/transfer",
   },
   {
     name: "subscription",
@@ -27,14 +27,14 @@ const quickActions: {
     icon: "add-balance",
     color: "#7952FC",
     text: "Add Balance",
-    href: "/accounts/add-balance",
+    href: "/wallets/add-balance",
   },
   {
-    name: "spend",
-    icon: "spend",
+    name: "wallets",
+    icon: "wallet",
     color: "#7952FC",
-    text: "Spend",
-    href: "/accounts/spend",
+    text: "Accounts",
+    href: "/wallets",
   },
 ];
 
@@ -46,7 +46,7 @@ export default function QuickActions() {
         <TouchableOpacity
           key={action.name}
           onPress={() => {
-            router.push((action.href || "/accounts/" + action.name) as any);
+            router.push((action.href || "/wallets/" + action.name) as any);
           }}
           className="flex-col justify-center items-center gap-1"
         >

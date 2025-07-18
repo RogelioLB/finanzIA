@@ -1,52 +1,17 @@
-import React, { useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
-import Animated, { FadeInUp } from "react-native-reanimated";
+import { Category } from "@/contexts/CategoriesContext";
+import { useCategories } from "@/hooks/useCategories";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import Animated, {
+  cancelAnimation,
+  Easing,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import BottomSheetBase from "./BottomSheetBase";
-
-// Define Category type
-export interface Category {
-  id: string;
-  name: string;
-  icon: string;
-  color?: string;
-  type: "expense" | "income";
-}
-
-// Mock data for categories
-const EXPENSE_CATEGORIES: Category[] = [
-  { id: "1", name: "Comida", icon: "🍔", color: "#FF6B6B", type: "expense" },
-  {
-    id: "2",
-    name: "Transporte",
-    icon: "🚗",
-    color: "#4ECDC4",
-    type: "expense",
-  },
-  {
-    id: "3",
-    name: "Hobby",
-    icon: "🎬",
-    color: "#FFD166",
-    type: "expense",
-  },
-  { id: "4", name: "Compras", icon: "🛍️", color: "#F9C80E", type: "expense" },
-  { id: "5", name: "Servicios", icon: "💡", color: "#FF9F1C", type: "expense" },
-  { id: "6", name: "Salud", icon: "💊", color: "#FF6B6B", type: "expense" },
-  { id: "7", name: "Casa", icon: "🏠", color: "#4ECDC4", type: "expense" },
-  { id: "8", name: "Educación", icon: "📚", color: "#F9C80E", type: "expense" },
-  { id: "9", name: "Otro", icon: "💭", color: "#FF9F1C", type: "expense" },
-];
-
-const INCOME_CATEGORIES: Category[] = [
-  { id: "10", name: "Salario", icon: "💰", color: "#4ECDC4", type: "income" },
-  { id: "11", name: "Freelance", icon: "💻", color: "#FFD166", type: "income" },
-  { id: "12", name: "Regalos", icon: "🎁", color: "#FF6B6B", type: "income" },
-  { id: "13", name: "Inversión", icon: "📈", color: "#F9C80E", type: "income" },
-  { id: "14", name: "Reembolso", icon: "💸", color: "#FF9F1C", type: "income" },
-  { id: "15", name: "Otro", icon: "💭", color: "#4ECDC4", type: "income" },
-];
-
-const CATEGORIES = [...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES];
 
 interface CategorySheetProps {
   onSelectCategory: (category: Category, type: "expense" | "income") => void;
@@ -63,11 +28,59 @@ export default function CategorySheet({
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
     null
   );
+  const { expenseCategories, incomeCategories, loading } = useCategories();
 
-  const handleCategorySelect = (category: Category) => {
+  // Usar las categorías adecuadas según el tab activo
+  const filteredCategories =
+    activeTab === "expense" ? expenseCategories : incomeCategories;
+
+  // Valor animado para la opacidad durante la transición
+  const contentOpacity = useSharedValue(1);
+
+  // Efecto para animar la transición entre tabs
+  useEffect(() => {
+    // Cancelar animación anterior
+    cancelAnimation(contentOpacity);
+
+    // Animación optimizada con spring para mejor feel
+    contentOpacity.value = withTiming(
+      0,
+      {
+        duration: 200,
+        easing: Easing.out(Easing.quad),
+      },
+      () => {
+        "worklet";
+        contentOpacity.value = withSpring(1, {
+          damping: 15,
+          mass: 0.8,
+          overshootClamping: false,
+          restDisplacementThreshold: 0.01,
+          restSpeedThreshold: 0.01,
+        });
+      }
+    );
+  }, [activeTab, contentOpacity]);
+
+  const handleSelectCategory = (category: Category) => {
     setSelectedCategory(category);
     onSelectCategory(category, activeTab);
   };
+
+  // Estilo animado para la transición de contenido
+  const animatedContentStyle = useAnimatedStyle(() => {
+    return {
+      opacity: contentOpacity.value,
+      transform: [
+        {
+          scale: contentOpacity.value * 0.05 + 0.95, // Sutil efecto de escala
+        },
+        {
+          translateY: (1 - contentOpacity.value) * 10, // Sutil movimiento vertical
+        },
+      ],
+    };
+  });
 
   return (
     <BottomSheetBase
@@ -101,32 +114,48 @@ export default function CategorySheet({
       </View>
 
       {/* Categories grid */}
-      <Animated.ScrollView className="mb-5 max-h-96">
-        <View className="flex-row flex-wrap justify-between">
-          {CATEGORIES.filter((category) => category.type === activeTab).map(
-            (category, index) => (
-              <Animated.View
-                key={category.id}
-                entering={FadeInUp.delay(index * 50)
-                  .springify()
-                  .damping(12)
-                  .stiffness(100)}
-                className="w-[33%] p-3 rounded-xl items-center justify-center"
-              >
-                <TouchableOpacity
-                  className={`flex-col w-full p-3 rounded-xl items-center justify-center ${selectedCategory?.id === category.id ? "bg-primary" : "bg-[#2d2d3a]"}`}
-                  onPress={() => handleCategorySelect(category)}
-                >
-                  <Text className="text-3xl mb-1">{category.icon}</Text>
-                  <Text className="text-white text-center">
-                    {category.name}
-                  </Text>
-                </TouchableOpacity>
-              </Animated.View>
-            )
-          )}
+      {loading ? (
+        <View className="items-center justify-center py-10">
+          <ActivityIndicator size="large" color="#6366f1" />
+          <Text className="text-white mt-2">Cargando categorías...</Text>
         </View>
-      </Animated.ScrollView>
+      ) : (
+        <Animated.View style={[animatedContentStyle, { marginBottom: 20 }]}>
+          {filteredCategories.length === 0 ? (
+            <View className="items-center justify-center py-10">
+              <Text className="text-white text-center">
+                No hay categorías disponibles.
+              </Text>
+            </View>
+          ) : (
+            <Animated.ScrollView
+              style={{ height: 300 }} // Altura fija para el ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 20 }}
+            >
+              <View className="flex-row flex-wrap justify-between">
+                {filteredCategories.map((category, index) => (
+                  <Animated.View
+                    entering={FadeInUp.delay(index * 50).duration(200)}
+                    key={category.id}
+                    className="w-[33%] p-2"
+                  >
+                    <TouchableOpacity
+                      className={`flex-col w-full p-3 rounded-xl items-center justify-center ${selectedCategory?.id === category.id ? "bg-primary" : "bg-[#2d2d3a]"}`}
+                      onPress={() => handleSelectCategory(category)}
+                    >
+                      <Text className="text-3xl mb-1">{category.icon}</Text>
+                      <Text className="text-white text-center text-sm">
+                        {category.name}
+                      </Text>
+                    </TouchableOpacity>
+                  </Animated.View>
+                ))}
+              </View>
+            </Animated.ScrollView>
+          )}
+        </Animated.View>
+      )}
     </BottomSheetBase>
   );
 }

@@ -2,7 +2,9 @@ import CardBalance from "@/components/CardBalance";
 import QuickActions from "@/components/QuickActions";
 import Icon from "@/components/ui/Icon";
 import TransitionLayout from "@/components/ui/TransitionLayout";
-import { StyleSheet, Text, View } from "react-native";
+import AccountsWidget from "@/widgets/accounts-widget";
+import TransactionsWidget from "@/widgets/transactions-widget";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -13,44 +15,48 @@ export default function HomeScreen() {
   return (
     <TransitionLayout>
       <SafeAreaView edges={["top"]} style={{ paddingTop: insets.top }}>
-        <View className="p-4 gap-8">
-          <View className="flex-row items-center gap-4">
-            <View
-              style={{
-                backgroundColor: "#7952FC",
-                borderRadius: 999,
-                width: 56, // equivalente a w-14 (14 * 4px)
-                height: 56, // equivalente a h-14
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Icon name="profile" size={24} color="#fff" />
+        <ScrollView>
+          <View className="p-4 gap-8">
+            <View className="flex-row items-center gap-4">
+              <View
+                style={{
+                  backgroundColor: "#7952FC",
+                  borderRadius: 999,
+                  width: 56, // equivalente a w-14 (14 * 4px)
+                  height: 56, // equivalente a h-14
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon name="profile" size={24} color="#fff" />
+              </View>
+              <Text className="text-black flex-1 font-semibold text-base">
+                Jhon
+              </Text>
+              <View
+                style={{
+                  borderRadius: 999,
+                  width: 56, // equivalente a w-14 (14 * 4px)
+                  height: 56, // equivalente a h-14
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: "#DCDCDC",
+                  borderStartStartRadius: 999,
+                  borderEndStartRadius: 999,
+                  borderStartEndRadius: 999,
+                  borderEndEndRadius: 999,
+                }}
+              >
+                <Icon name="notification" size={24} color="#7952FC" />
+              </View>
             </View>
-            <Text className="text-black flex-1 font-semibold text-base">
-              Jhon
-            </Text>
-            <View
-              style={{
-                borderRadius: 999,
-                width: 56, // equivalente a w-14 (14 * 4px)
-                height: 56, // equivalente a h-14
-                alignItems: "center",
-                justifyContent: "center",
-                borderWidth: 1,
-                borderColor: "#DCDCDC",
-                borderStartStartRadius: 999,
-                borderEndStartRadius: 999,
-                borderStartEndRadius: 999,
-                borderEndEndRadius: 999,
-              }}
-            >
-              <Icon name="notification" size={24} color="#7952FC" />
-            </View>
+            <AccountsWidget />
+            <CardBalance />
+            <QuickActions />
+            <TransactionsWidget />
           </View>
-          <CardBalance />
-          <QuickActions />
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </TransitionLayout>
   );

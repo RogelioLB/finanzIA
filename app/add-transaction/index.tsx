@@ -1,7 +1,7 @@
 import { useAddTransaction } from "@/hooks/useAddTransaction";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { StatusBar } from "expo-status-bar";
+
 import React, { useEffect, useState } from "react";
 import {
   StyleSheet,
@@ -15,15 +15,8 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
-import { Category } from "../../components/views/transactions/CategorySheet";
 import TransactionFlow from "../../components/views/transactions/TransactionFlow";
-
-interface TransactionData {
-  description: string;
-  category: Category | null;
-  type: "expense" | "income";
-  amount: string;
-}
+import { TransactionData } from "../../contexts/AddTransactionContext";
 
 export default function AddTransactionScreen() {
   const router = useRouter();
@@ -32,10 +25,17 @@ export default function AddTransactionScreen() {
     setAmount,
     category,
     type,
-    description,
-    setDescription,
+    title,
+    setTitle,
+    note,
+    setNote,
     setCategory,
     setType,
+    selectedWallet,
+    setSelectedWallet,
+    isCreating,
+    createTransaction,
+    resetTransaction,
   } = useAddTransaction();
   const [flowVisible, setFlowVisible] = useState(true);
   const [transactionComplete, setTransactionComplete] = useState(false);
@@ -96,8 +96,6 @@ export default function AddTransactionScreen() {
 
   return (
     <View className="flex-1">
-      <StatusBar style="light" />
-
       {/* Header */}
       <View className="flex-row items-center pt-12 px-5 pb-4">
         <TouchableOpacity className="mr-4" onPress={() => router.back()}>
@@ -129,7 +127,8 @@ export default function AddTransactionScreen() {
             <Text
               style={[
                 styles.tabText,
-                selectedTab === "expense" && styles.activeTabText,
+                (selectedTab === "expense" || type === "expense") &&
+                  styles.activeTabText,
               ]}
             >
               Gasto
@@ -144,7 +143,8 @@ export default function AddTransactionScreen() {
             <Text
               style={[
                 styles.tabText,
-                selectedTab === "income" && styles.activeTabText,
+                (selectedTab === "income" || type === "income") &&
+                  styles.activeTabText,
               ]}
             >
               Ingreso
@@ -164,27 +164,46 @@ export default function AddTransactionScreen() {
           </View>
         </View>
       </View>
-      <View className="bg-gray-950 p-4">
+      <View
+        className="bg-gray-950 p-4"
+        pointerEvents={flowVisible ? "none" : "auto"}
+      >
         <TextInput
-          placeholder="Descripción"
-          value={description}
-          onChangeText={setDescription}
-          className="text-white"
+          placeholder="Título de la transacción"
+          value={title}
+          onChangeText={setTitle}
+          className="text-white text-lg font-semibold"
+          editable={!flowVisible}
+        />
+        <TextInput
+          placeholder="Nota (opcional)"
+          value={note}
+          onChangeText={setNote}
+          className="text-white/70 text-sm mt-2"
+          multiline
+          editable={!flowVisible}
         />
       </View>
 
       {/* Transaction flow bottom sheets */}
       <TransactionFlow
         visible={flowVisible}
-        onComplete={(data) => {
+        onComplete={async (data) => {
           setCompletedTransaction(data);
           setTransactionComplete(true);
           setFlowVisible(false);
 
-          // Auto-navigate back after showing success for 1 second
-          setTimeout(() => {
+          // Crear la transacción
+          const success = await createTransaction();
+
+          if (success) {
+            resetTransaction();
             router.replace("/");
-          }, 1000);
+          } else {
+            // Mostrar error o permitir reintentar
+            console.error("Error creating transaction");
+            setFlowVisible(true);
+          }
         }}
         onCancel={() => {
           setFlowVisible(false);

@@ -5,8 +5,11 @@ import Animated, { FadeIn, SlideInUp } from "react-native-reanimated";
 export default function CardBalance() {
   const { balances, loading, error } = useBalance();
   const currencies = Array.from(balances?.keys() || []);
+  const selectedCurrencyIndex = currencies.findIndex(
+    (currency) => currency === "MXN"
+  );
   const selectedCurrency =
-    currencies.findIndex((currency) => currency === "MXN") || 0;
+    selectedCurrencyIndex !== -1 ? selectedCurrencyIndex : 0;
 
   return (
     <View className="bg-[#7952FC] p-5 rounded-2xl w-full h-60 overflow-hidden relative">
@@ -39,12 +42,12 @@ export default function CardBalance() {
         >
           <View>
             <Animated.Text className="text-white font-normal text-lg">
-              My Balance
+              Mi Balance
             </Animated.Text>
 
             <Animated.Text className="text-white font-semibold text-3xl">
-              {balances && balances.size > 0
-                ? `${balances.get(currencies[selectedCurrency])?.balance}`
+              {balances && balances.size > 0 && currencies.length > 0
+                ? balances.get(currencies[selectedCurrency])?.balance || "$0.00"
                 : "$0.00"}
             </Animated.Text>
           </View>
@@ -57,7 +60,7 @@ export default function CardBalance() {
                     key={currency}
                     className="text-white/80 font-semibold text-lg"
                   >
-                    {balances.get(currency)?.balance}
+                    {balances.get(currency)?.balance || "$0.00"}
                   </Animated.Text>
                 ))}
           </View>

@@ -1,43 +1,123 @@
-import { useEffect, useState } from "react";
-import { useAccounts } from "./useAccounts";
+import { useWallets } from "@/contexts/WalletsContext";
+import { useCallback, useEffect, useState } from "react";
+
+interface WalletBalance {
+  id: string;
+  name: string;
+  balance: string;
+  currency: string;
+  icon?: string;
+  color?: string;
+}
+
+interface CurrencyBalance {
+  currency: string;
+  balance: string;
+  totalWallets: number;
+}
 
 export default function useBalance() {
-  const { accounts } = useAccounts();
+  const { wallets } = useWallets();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [balances, setBalances] = useState<
-    Map<string, { currency: string; balance: string }>
-  >(new Map());
+  const [balances, setBalances] = useState<Map<string, CurrencyBalance>>(
+    new Map()
+  );
+  const [walletBalances, setWalletBalances] = useState<WalletBalance[]>([]);
 
-  const loadBalances = async () => {
+  const loadBalances = useCallback(async () => {
     try {
       setLoading(true);
-      const balances = accounts.reduce<
-        Map<string, { currency: string; balance: number }>
-      >((acc, account) => {
-        acc.set(account.currency, {
-          currency: account.currency,
-          balance:
-            Number(account.balance) +
-            Number(acc.get(account.currency)?.balance || 0),
+
+      // Si no hay wallets, establecer un balance vacío
+      if (!wallets || wallets.length === 0) {
+        setBalances(new Map());
+        setWalletBalances([]);
+        return;
+      }
+      
+      // Crear balances individuales de wallets
+      const individualWallets: WalletBalance[] = wallets.map(wallet => {
+        const currency = wallet.currency || 'USD';
+        // Usar el net_balance en lugar del balance principal
+        const balance = Number(wallet.net_balance !== undefined ? wallet.net_balance : wallet.balance) || 0;
+        
+        let locale = "en-US";
+        if (currency === "MXN") {
+          locale = "es-MX";
+        }
+        
+        try {
+          const format = new Intl.NumberFormat(locale, {
+            style: "currency",
+            currency: currency,
+            currencyDisplay: "code",
+          });
+          return {
+            id: wallet.id,
+            name: wallet.name,
+            balance: format.format(balance),
+            currency: currency,
+            icon: wallet.icon,
+            color: wallet.color,
+          };
+        } catch (formatError) {
+          console.warn(`Error formatting currency ${currency}:`, formatError);
+          return {
+            id: wallet.id,
+            name: wallet.name,
+            balance: `${currency} ${balance.toFixed(2)}`,
+            currency: currency,
+            icon: wallet.icon,
+            color: wallet.color,
+          };
+        }
+      });
+      
+      // Crear balances agrupados por moneda
+      const currencyBalances = new Map<string, { currency: string; balance: number; count: number }>();
+      
+      for (const wallet of wallets) {
+        const currency = wallet.currency || 'USD';
+        // Usar el net_balance en lugar del balance principal
+        const balance = Number(wallet.net_balance !== undefined ? wallet.net_balance : wallet.balance) || 0;
+        
+        const existing = currencyBalances.get(currency);
+        currencyBalances.set(currency, {
+          currency: currency,
+          balance: balance + (existing?.balance || 0),
+          count: (existing?.count || 0) + 1,
         });
-        return acc;
-      }, new Map());
-      const formattedBalances = Array.from(balances.values()).map((balance) => {
+      }
+      
+      const formattedBalances = Array.from(currencyBalances.values()).map((balance) => {
         let locale = "en-US";
         if (balance.currency === "MXN") {
           locale = "es-MX";
         }
-        const format = new Intl.NumberFormat(locale, {
-          style: "currency",
-          currency: balance.currency,
-          currencyDisplay: "code",
-        });
-        return {
-          currency: balance.currency,
-          balance: format.format(balance.balance),
-        };
+        
+        try {
+          const format = new Intl.NumberFormat(locale, {
+            style: "currency",
+            currency: balance.currency,
+            currencyDisplay: "code",
+          });
+          return {
+            currency: balance.currency,
+            balance: format.format(balance.balance),
+            totalWallets: balance.count,
+          };
+        } catch (formatError) {
+          console.warn(`Error formatting currency ${balance.currency}:`, formatError);
+          return {
+            currency: balance.currency,
+            balance: `${balance.currency} ${balance.balance.toFixed(2)}`,
+            totalWallets: balance.count,
+          };
+        }
       });
+      
+      setWalletBalances(individualWallets);
       setBalances(
         new Map(formattedBalances.map((balance) => [balance.currency, balance]))
       );
@@ -47,18 +127,15 @@ export default function useBalance() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [wallets]);
 
   useEffect(() => {
     loadBalances();
-  }, []); // Añadir accounts como dependencia para que se actualice cuando cambien
-
-  useEffect(() => {
-    loadBalances();
-  }, [accounts]);
+  }, [wallets, loadBalances]);
 
   return {
     balances,
+    walletBalances,
     loading,
     error,
   };
