@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "finance-app",
+    "name": "Finance App",
     "slug": "finance-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -51,7 +51,9 @@
             ]
           }
         }
-      ]
+      ],
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

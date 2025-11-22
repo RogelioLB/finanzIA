@@ -144,8 +144,10 @@ const CategoryStats: React.FC<CategoryStatsProps> = ({
           showText
           textSize={12}
           textColor="#fff"
-          fontWeight="600"
+          fontWeight="800"
           showValuesAsLabels
+          isAnimated
+          animationDuration={1000}
           centerLabelComponent={() => (
             <View style={styles.centerLabel}>
               <Text style={styles.centerLabelText}>Total</Text>

@@ -37,10 +37,8 @@ export default function Layout() {
           <AnimatedTabButton
             name="Transacciones"
             customIcon="cash-outline"
-            href="/transactions/index"
-            isActive={
-              pathname === "/transactions" || pathname === "/transactions/index"
-            }
+            href="/history"
+            isActive={pathname === "/history" || pathname === "/history/index"}
           />
           <AnimatedTabButton
             name="AI Plan"
@@ -59,7 +57,7 @@ export default function Layout() {
 
       <TabList style={{ display: "none" }}>
         <TabTrigger name="inicio" href="/" />
-        <TabTrigger name="transacciones" href="/transactions/index" />
+        <TabTrigger name="transacciones" href="/history" />
         <TabTrigger name="ai plan" href="/ai-plan" />
         <TabTrigger name="more" href="/more" />
       </TabList>

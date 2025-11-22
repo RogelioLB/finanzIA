@@ -1,10 +1,11 @@
 import { useAddTransaction } from "@/hooks/useAddTransaction";
 import React, { useState } from "react";
 import AmountSheet from "./AmountSheet";
-import CategorySheet, { Category } from "./CategorySheet";
+import CategorySheet from "./CategorySheet";
 import DescriptionSheet from "./DescriptionSheet";
 
 // Importamos el tipo desde el contexto
+import { Category } from "@/contexts/CategoriesContext";
 import type { TransactionData } from "../../../contexts/AddTransactionContext";
 
 interface TransactionFlowProps {

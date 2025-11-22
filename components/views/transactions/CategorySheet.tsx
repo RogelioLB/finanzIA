@@ -54,9 +54,7 @@ export default function CategorySheet({
         contentOpacity.value = withSpring(1, {
           damping: 15,
           mass: 0.8,
-          overshootClamping: false,
-          restDisplacementThreshold: 0.01,
-          restSpeedThreshold: 0.01,
+          overshootClamping: false
         });
       }
     );

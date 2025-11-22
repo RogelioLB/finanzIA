@@ -27,9 +27,6 @@ export default function WalletStatsSummary({
       ...stats.expenseTransactions,
     ].sort((a, b) => a.timestamp - b.timestamp);
 
-    // El balance inicial es el balance actual menos el efecto neto de las transacciones
-    const initialBalance = currentBalance - stats.netBalance;
-
     // Función para formatear fecha con día y mes en 3 letras
     const formatDate = (timestamp: number) => {
       const date = new Date(timestamp);
@@ -67,14 +64,14 @@ export default function WalletStatsSummary({
       ];
     }
 
-    // Comenzar desde el balance inicial calculado
-    let runningBalance = initialBalance;
+    // Comenzar desde 0 como punto de referencia (más intuitivo)
+    let runningBalance = 0;
 
-    // Agregar punto inicial
+    // Agregar punto inicial en 0
     const history = [
       {
-        value: initialBalance,
-        dataPointText: getCurrencySymbol(currency) + initialBalance.toFixed(0),
+        value: 0,
+        dataPointText: getCurrencySymbol(currency) + "0",
         label: "Inicio",
       },
     ];
@@ -100,7 +97,6 @@ export default function WalletStatsSummary({
     stats.expenseTransactions,
     currency,
     currentBalance,
-    stats.netBalance,
   ]);
 
   const screenWidth = Dimensions.get("window").width;
@@ -113,9 +109,10 @@ export default function WalletStatsSummary({
         <Text style={styles.chartTitle}>Balance a través del tiempo</Text>
         {balanceHistory.length > 1 ? (
           <LineChart
+            isAnimated
             data={balanceHistory}
             width={chartWidth}
-            height={200}
+            height={130}
             color="#8B5CF6"
             thickness={3}
             dataPointsColor="#8B5CF6"
@@ -126,11 +123,37 @@ export default function WalletStatsSummary({
             hideAxesAndRules={false}
             xAxisColor="#E5E7EB"
             xAxisLabelTextStyle={{ color: "#666", fontSize: 10 }}
-            maxValue={
-              Math.max(...balanceHistory.map((item) => item.value)) * 1.1
-            }
-            animateOnDataChange
-            animationDuration={1000}
+            maxValue={(() => {
+              const values = balanceHistory.map((item) => item.value);
+              const maxVal = Math.max(...values);
+              const minVal = Math.min(...values);
+
+              // Si todos los valores son positivos, usar el máximo * 1.2
+              if (minVal >= 0) {
+                return Math.max(maxVal * 1.2, 100); // Mínimo de 100 para evitar gráficas muy pequeñas
+              }
+
+              // Si hay valores negativos, usar un rango simétrico
+              const absMax = Math.max(Math.abs(maxVal), Math.abs(minVal));
+              return absMax * 1.2;
+            })()}
+            mostNegativeValue={(() => {
+              const values = balanceHistory.map((item) => item.value);
+              const minVal = Math.min(...values);
+
+              // Si hay valores negativos, establecer el valor más negativo
+              if (minVal < 0) {
+                const maxVal = Math.max(...values);
+                const absMax = Math.max(Math.abs(maxVal), Math.abs(minVal));
+                return -absMax * 1.2;
+              }
+
+              // Si todos son positivos, no hay valor negativo
+              return 0;
+            })()}
+            focusEnabled
+            showTextOnFocus
+            showStripOnFocus
           />
         ) : (
           <View style={styles.noDataContainer}>

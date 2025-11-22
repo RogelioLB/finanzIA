@@ -198,7 +198,7 @@ export default function AddTransactionScreen() {
 
           if (success) {
             resetTransaction();
-            router.replace("/");
+            router.back();
           } else {
             // Mostrar error o permitir reintentar
             console.error("Error creating transaction");
