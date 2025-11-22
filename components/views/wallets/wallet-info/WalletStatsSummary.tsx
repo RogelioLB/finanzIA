@@ -59,25 +59,40 @@ export default function WalletStatsSummary({
           value: currentBalance,
           dataPointText:
             getCurrencySymbol(currency) + currentBalance.toFixed(0),
-          label: "Hoy",
+          label: "Actual",
         },
       ];
     }
 
-    // Comenzar desde 0 como punto de referencia (más intuitivo)
-    let runningBalance = 0;
+    // Filtrar transacciones excluidas (suscripciones no pagadas)
+    const includedTransactions = allTransactions.filter(t => t.is_excluded === 0);
 
-    // Agregar punto inicial en 0
+    // Calcular el balance inicial (balance actual - efecto de todas las transacciones incluidas)
+    let transactionsEffect = 0;
+    includedTransactions.forEach((transaction) => {
+      if (transaction.type === "income") {
+        transactionsEffect += transaction.amount;
+      } else if (transaction.type === "expense") {
+        transactionsEffect -= transaction.amount;
+      }
+    });
+
+    const initialBalance = currentBalance - transactionsEffect;
+
+    // Comenzar desde el balance inicial real
+    let runningBalance = initialBalance;
+
+    // Agregar punto inicial con el balance real
     const history = [
       {
-        value: 0,
-        dataPointText: getCurrencySymbol(currency) + "0",
+        value: initialBalance,
+        dataPointText: getCurrencySymbol(currency) + initialBalance.toFixed(0),
         label: "Inicio",
       },
     ];
 
-    // Procesar cada transacción cronológicamente
-    allTransactions.forEach((transaction, index) => {
+    // Procesar cada transacción cronológicamente (solo las incluidas)
+    includedTransactions.forEach((transaction, index) => {
       if (transaction.type === "income") {
         runningBalance += transaction.amount;
       } else if (transaction.type === "expense") {
@@ -166,6 +181,14 @@ export default function WalletStatsSummary({
 
       {/* Estadísticas Resumidas */}
       <View style={styles.statsContainer}>
+        <View style={styles.statCard}>
+          <Text style={styles.statLabel}>Balance Actual</Text>
+          <Text style={[styles.statValue, { color: "#7952FC" }]}>
+            {getCurrencySymbol(currency)}
+            {currentBalance.toFixed(2)}
+          </Text>
+        </View>
+
         <View style={styles.statCard}>
           <Text style={styles.statLabel}>Ingresos</Text>
           <Text style={[styles.statValue, { color: "#4CAF50" }]}>

@@ -1,9 +1,9 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Wallet } from '../../../../lib/database/sqliteService';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { currencies, Currency } from '../../../../constants/currencies';
+import { Wallet } from '../../../../lib/database/sqliteService';
 
 interface WalletInfoHeaderProps {
   wallet: Wallet;
@@ -33,8 +33,7 @@ export default function WalletInfoHeader({ wallet }: WalletInfoHeaderProps) {
         <TouchableOpacity
           style={styles.editButton}
           onPress={() => {
-            // Por ahora, mostrar un alert hasta que se implemente la pantalla de edición
-            alert('Función de edición próximamente');
+            router.push(`/wallets/edit-wallet/${wallet.id}` as any);
           }}
         >
           <Ionicons name="create-outline" size={24} color="#7952FC" />

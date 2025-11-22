@@ -10,6 +10,7 @@ export interface Transaction {
   category_name?: string;
   category_icon?: string;
   category_color?: string;
+  is_excluded: number;
 }
 
 export interface WalletStats {

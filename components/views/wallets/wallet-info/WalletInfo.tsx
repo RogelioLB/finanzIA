@@ -40,15 +40,20 @@ export default function WalletInfo({
       // Obtener transacciones de la wallet
       const walletTransactions = await getTransactions({ walletId });
 
-      // Separar por tipo
-      const incomeTransactions = walletTransactions.filter(
+      // Filtrar transacciones excluidas (suscripciones no pagadas)
+      const includedTransactions = walletTransactions.filter(
+        (t: Transaction) => t.is_excluded === 0
+      );
+
+      // Separar por tipo (solo transacciones incluidas)
+      const incomeTransactions = includedTransactions.filter(
         (t: Transaction) => t.type === "income"
       );
-      const expenseTransactions = walletTransactions.filter(
+      const expenseTransactions = includedTransactions.filter(
         (t: Transaction) => t.type === "expense"
       );
 
-      // Calcular totales
+      // Calcular totales (solo transacciones incluidas)
       const totalIncome = incomeTransactions.reduce(
         (sum: number, t: Transaction) => sum + t.amount,
         0
@@ -63,7 +68,7 @@ export default function WalletInfo({
         totalIncome,
         totalExpenses,
         netBalance: totalIncome - totalExpenses,
-        transactionCount: walletTransactions.length,
+        transactionCount: includedTransactions.length,
         incomeTransactions,
         expenseTransactions,
         categoryStats: {}, // Se calculará por separado

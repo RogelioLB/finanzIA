@@ -17,6 +17,7 @@ interface WalletsContextType {
     balance?: number;
     icon: string;
     color: string;
+    currency?: string;
   }) => Promise<string>;
   updateWallet: (
     id: string,
@@ -25,6 +26,7 @@ interface WalletsContextType {
       balance?: number;
       icon?: string;
       color?: string;
+      currency?: string;
     }
   ) => Promise<void>;
   deleteWallet: (id: string) => Promise<void>;
@@ -76,6 +78,7 @@ export const WalletsProvider: React.FC<WalletsProviderProps> = ({
       balance?: number;
       icon: string;
       color: string;
+      currency?: string;
     }) => {
       try {
         setError(null);
@@ -100,6 +103,7 @@ export const WalletsProvider: React.FC<WalletsProviderProps> = ({
         balance?: number;
         icon?: string;
         color?: string;
+        currency?: string;
       }
     ) => {
       try {

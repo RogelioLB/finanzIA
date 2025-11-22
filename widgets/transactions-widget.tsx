@@ -68,7 +68,7 @@ export default function TransactionsWidget() {
               <TouchableOpacity
                 style={styles.transactionItem}
                 onPress={() =>
-                  router.push(`/transactions/${transaction.id}` as any)
+                  router.push(`/edit-transaction/${transaction.id}` as any)
                 }
                 activeOpacity={0.7}
               >
@@ -78,33 +78,50 @@ export default function TransactionsWidget() {
                       styles.categoryIcon,
                       {
                         backgroundColor:
-                          transaction.category_color || "#F0F0F0",
+                          transaction.is_excluded === 1
+                            ? "#E5E7EB"
+                            : transaction.category_color || "#F0F0F0",
                       },
                     ]}
                   >
                     {transaction.category_icon ? (
-                      <Text style={styles.categoryIconText}>
+                      <Text style={[
+                        styles.categoryIconText,
+                        transaction.is_excluded === 1 && styles.excludedText
+                      ]}>
                         {transaction.category_icon}
                       </Text>
                     ) : (
                       <Ionicons
                         name={transaction.type === "expense" ? "remove" : "add"}
                         size={16}
-                        color="#666"
+                        color={transaction.is_excluded === 1 ? "#9CA3AF" : "#666"}
                       />
                     )}
                   </View>
 
                   <View style={styles.transactionInfo}>
-                    <Text style={styles.transactionTitle} numberOfLines={1}>
+                    <Text style={[
+                      styles.transactionTitle,
+                      transaction.is_excluded === 1 && styles.excludedText
+                    ]} numberOfLines={1}>
                       {transaction.title}
                     </Text>
                     <View style={styles.transactionMeta}>
-                      <Text style={styles.categoryName}>
+                      <Text style={[
+                        styles.categoryName,
+                        transaction.is_excluded === 1 && styles.excludedText
+                      ]}>
                         {transaction.category_name || "Sin categoría"}
                       </Text>
-                      <Text style={styles.separator}>•</Text>
-                      <Text style={styles.walletName}>
+                      <Text style={[
+                        styles.separator,
+                        transaction.is_excluded === 1 && styles.excludedText
+                      ]}>•</Text>
+                      <Text style={[
+                        styles.walletName,
+                        transaction.is_excluded === 1 && styles.excludedText
+                      ]}>
                         {transaction.wallet_name || "Wallet"}
                       </Text>
                     </View>
@@ -115,17 +132,22 @@ export default function TransactionsWidget() {
                   <Text
                     style={[
                       styles.transactionAmount,
-                      {
-                        color:
-                          transaction.type === "expense"
-                            ? "#FF4757"
-                            : "#2ED573",
-                      },
+                      transaction.is_excluded === 1
+                        ? styles.excludedAmount
+                        : {
+                            color:
+                              transaction.type === "expense"
+                                ? "#FF4757"
+                                : "#2ED573",
+                          },
                     ]}
                   >
                     {formatAmount(transaction.amount, transaction.type)}
                   </Text>
-                  <Text style={styles.transactionDate}>
+                  <Text style={[
+                    styles.transactionDate,
+                    transaction.is_excluded === 1 && styles.excludedText
+                  ]}>
                     {formatDate(transaction.timestamp)}
                   </Text>
                 </View>
@@ -307,7 +329,14 @@ const styles = StyleSheet.create({
   },
   addTransactionText: {
     fontSize: 14,
-    fontWeight: "600",
     color: "#7952FC",
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+  excludedText: {
+    color: "#9CA3AF",
+  },
+  excludedAmount: {
+    color: "#9CA3AF",
   },
 });

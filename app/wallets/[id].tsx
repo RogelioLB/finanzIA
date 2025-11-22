@@ -1,5 +1,5 @@
-import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WalletInfo } from "../../components/views/wallets/wallet-info";
@@ -8,37 +8,50 @@ import { Wallet } from "../../lib/database/sqliteService";
 
 export default function WalletDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getWalletById } = useWallets();
+  const { getWalletById, wallets } = useWallets();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadWallet = useCallback(async () => {
+    if (!id) {
+      setError("ID de wallet no proporcionado");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const walletData = await getWalletById(id);
+      if (walletData) {
+        setWallet(walletData);
+      } else {
+        setError("Wallet no encontrada");
+      }
+    } catch (err) {
+      console.error("Error loading wallet:", err);
+      setError("Error al cargar la wallet");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id, getWalletById]);
+
+  // Cargar wallet cuando la pantalla recibe foco
+  useFocusEffect(
+    useCallback(() => {
+      loadWallet();
+    }, [loadWallet])
+  );
+
+  // También cargar cuando cambian las wallets en el contexto
   useEffect(() => {
-    const loadWallet = async () => {
-      if (!id) {
-        setError("ID de wallet no proporcionado");
-        setIsLoading(false);
-        return;
+    if (id) {
+      const walletData = getWalletById(id);
+      if (walletData) {
+        setWallet(walletData);
       }
-
-      try {
-        setIsLoading(true);
-        const walletData = await getWalletById(id);
-        if (walletData) {
-          setWallet(walletData);
-        } else {
-          setError("Wallet no encontrada");
-        }
-      } catch (err) {
-        console.error("Error loading wallet:", err);
-        setError("Error al cargar la wallet");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadWallet();
-  }, [id]);
+    }
+  }, [wallets, id, getWalletById]);
 
   if (isLoading) {
     return (

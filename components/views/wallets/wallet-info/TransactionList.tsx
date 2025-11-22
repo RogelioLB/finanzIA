@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
-import { Transaction } from './types';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { currencies, Currency } from '../../../../constants/currencies';
+import { Transaction } from './types';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -22,25 +22,46 @@ export default function TransactionList({ transactions, currency }: TransactionL
     });
   };
 
-  const renderTransactionItem = ({ item }: { item: Transaction }) => (
-    <View style={styles.transactionItem}>
-      <View style={styles.transactionInfo}>
-        <Text style={styles.transactionTitle}>{item.title}</Text>
-        {item.note && <Text style={styles.transactionNote}>{item.note}</Text>}
-        <Text style={styles.transactionDate}>{formatDate(item.timestamp)}</Text>
+  const renderTransactionItem = ({ item }: { item: Transaction }) => {
+    const isExcluded = item.is_excluded === 1;
+    
+    return (
+      <View style={styles.transactionItem}>
+        <View style={styles.transactionInfo}>
+          <Text style={[
+            styles.transactionTitle,
+            isExcluded && styles.excludedText
+          ]}>
+            {item.title}
+          </Text>
+          {item.note && <Text style={[
+            styles.transactionNote,
+            isExcluded && styles.excludedText
+          ]}>
+            {item.note}
+          </Text>}
+          <Text style={[
+            styles.transactionDate,
+            isExcluded && styles.excludedText
+          ]}>
+            {formatDate(item.timestamp)}
+          </Text>
+        </View>
+        <Text
+          style={[
+            styles.transactionAmount,
+            isExcluded 
+              ? styles.excludedAmount 
+              : { color: item.type === 'income' ? '#4CAF50' : '#FF6B6B' },
+          ]}
+        >
+          {item.type === 'income' ? '+' : '-'}
+          {getCurrencySymbol(currency)}
+          {item.amount.toFixed(2)}
+        </Text>
       </View>
-      <Text
-        style={[
-          styles.transactionAmount,
-          { color: item.type === 'income' ? '#4CAF50' : '#FF6B6B' },
-        ]}
-      >
-        {item.type === 'income' ? '+' : '-'}
-        {getCurrencySymbol(currency)}
-        {item.amount.toFixed(2)}
-      </Text>
-    </View>
-  );
+    );
+  };
 
   if (transactions.length === 0) {
     return (
@@ -113,7 +134,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
+    color: '#999',
     textAlign: 'center',
+  },
+  excludedText: {
+    color: '#9CA3AF',
+  },
+  excludedAmount: {
+    color: '#9CA3AF',
   },
 });

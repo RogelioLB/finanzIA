@@ -50,6 +50,7 @@ interface TransactionItem {
   category_icon?: string;
   category_color?: string;
   wallet_name?: string;
+  is_excluded: number;
 }
 
 export default function HistoryScreen() {
@@ -322,42 +323,69 @@ export default function HistoryScreen() {
     );
   };
   
-  const renderTransactionItem = ({ item }: { item: TransactionItem }) => (
-    <View style={styles.transactionItem}>
-      <View
-        style={{
-          ...styles.transactionIcon,
-          backgroundColor: item.category_color,
-        }}
-      >
-        <Text style={styles.categoryIcon}>
-          {item.category_icon || (item.type === "income" ? "💰" : "💸")}
-        </Text>
-      </View>
-
-      <View style={styles.transactionDetails}>
-        <Text style={styles.transactionTitle}>{item.title}</Text>
-        <View style={styles.transactionMeta}>
-          <Text style={styles.categoryName}>
-            {item.category_name || "Sin categoría"}
+  const renderTransactionItem = ({ item }: { item: TransactionItem }) => {
+    const isExcluded = item.is_excluded === 1;
+    
+    return (
+      <View style={styles.transactionItem}>
+        <View
+          style={{
+            ...styles.transactionIcon,
+            backgroundColor: isExcluded ? "#E5E7EB" : item.category_color,
+          }}
+        >
+          <Text style={[
+            styles.categoryIcon,
+            isExcluded && styles.excludedText
+          ]}>
+            {item.category_icon || (item.type === "income" ? "💰" : "💸")}
           </Text>
-          <Text style={styles.walletName}>{item.wallet_name || "Wallet"}</Text>
+        </View>
+
+        <View style={styles.transactionDetails}>
+          <Text style={[
+            styles.transactionTitle,
+            isExcluded && styles.excludedText
+          ]}>
+            {item.title}
+          </Text>
+          <View style={styles.transactionMeta}>
+            <Text style={[
+              styles.categoryName,
+              isExcluded && styles.excludedText
+            ]}>
+              {item.category_name || "Sin categoría"}
+            </Text>
+            <Text style={[
+              styles.walletName,
+              isExcluded && styles.excludedText
+            ]}>
+              {item.wallet_name || "Wallet"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.transactionAmount}>
+          <Text
+            style={[
+              styles.amountText,
+              isExcluded
+                ? styles.excludedAmount
+                : { color: item.type === "income" ? "#4CAF50" : "#FF6B6B" },
+            ]}
+          >
+            {formatAmount(item.amount, item.type)}
+          </Text>
+          <Text style={[
+            styles.dateText,
+            isExcluded && styles.excludedText
+          ]}>
+            {formatDate(item.timestamp)}
+          </Text>
         </View>
       </View>
-
-      <View style={styles.transactionAmount}>
-        <Text
-          style={[
-            styles.amountText,
-            { color: item.type === "income" ? "#4CAF50" : "#FF6B6B" },
-          ]}
-        >
-          {formatAmount(item.amount, item.type)}
-        </Text>
-        <Text style={styles.dateText}>{formatDate(item.timestamp)}</Text>
-      </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <TransitionLayout>
@@ -388,7 +416,7 @@ export default function HistoryScreen() {
           </View>
 
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Balance</Text>
+            <Text style={styles.statLabel}>Total Neto</Text>
             <Text
               style={[
                 styles.statValue,
@@ -762,6 +790,12 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
+    color: "#9CA3AF",
+  },
+  excludedText: {
+    color: "#9CA3AF",
+  },
+  excludedAmount: {
     color: "#9CA3AF",
   },
   emptyContainer: {

@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { useSQLiteService } from '@/lib/database/sqliteService';
+import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
 interface TransactionDisplay {
   id: string;
@@ -11,6 +11,7 @@ interface TransactionDisplay {
   category_icon?: string;
   category_color?: string;
   wallet_name?: string;
+  is_excluded: number;
 }
 
 interface TransactionsContextType {
@@ -55,6 +56,7 @@ export function TransactionsProvider({ children }: TransactionsProviderProps) {
         category_icon: transaction.category_icon,
         category_color: transaction.category_color,
         wallet_name: transaction.wallet_name,
+        is_excluded: transaction.is_excluded || 0,
       }));
       
       setTransactions(formattedTransactions);

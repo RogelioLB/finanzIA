@@ -29,7 +29,7 @@ interface AddTransactionContextType {
   setSelectedWallet: (wallet: Wallet | null) => void;
   isLoading: boolean;
   isCreating: boolean;
-  createTransaction: () => Promise<boolean>;
+  createTransaction: (timestamp?: number) => Promise<boolean>;
   resetTransaction: () => void;
 }
 
@@ -74,10 +74,13 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
   const { refreshTransactions } = useTransactions();
   const { createTransaction: createTransactionDB } = useSQLiteService();
 
-  const createTransaction = async (): Promise<boolean> => {
+  const createTransaction = async (timestamp?: number): Promise<boolean> => {
     if (!selectedWallet || parseFloat(amount) <= 0) {
       return false;
     }
+    
+    const transactionTimestamp = timestamp || Date.now();
+    
     console.log({
       wallet_id: selectedWallet.id,
       amount: parseFloat(amount),
@@ -85,7 +88,7 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
       title: title.trim(),
       note: note.trim() || undefined,
       category_id: category?.id,
-      timestamp: Date.now(),
+      timestamp: transactionTimestamp,
     });
 
     try {
@@ -100,7 +103,7 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
           title: category?.name || "",
           note: note.trim() || undefined,
           category_id: category?.id,
-          timestamp: Date.now(),
+          timestamp: transactionTimestamp,
         });
       } else {
         await createTransactionDB({
@@ -110,7 +113,7 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
           title: title.trim() || "",
           note: note.trim() || undefined,
           category_id: category?.id,
-          timestamp: Date.now(),
+          timestamp: transactionTimestamp,
         });
       }
 

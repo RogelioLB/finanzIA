@@ -5,7 +5,7 @@ import uuid from "react-native-uuid";
  * Constante para la versión actual de la base de datos
  * Incrementar cuando se realicen cambios en el esquema
  */
-const DATABASE_VERSION = 5;
+const DATABASE_VERSION = 8;
 
 /**
  * Inicializa la estructura de la base de datos
@@ -87,7 +87,9 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         to_wallet_id TEXT, -- Para transferencias entre wallets
         is_subscription INTEGER NOT NULL DEFAULT 0,
         subscription_frequency TEXT CHECK(subscription_frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+        next_payment_date INTEGER, -- Fecha del próximo pago para suscripciones
         end_date INTEGER,
+        is_excluded INTEGER NOT NULL DEFAULT 0, -- 1 si debe excluirse de cálculos (suscripciones no pagadas)
         created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
         updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
         sync_status TEXT NOT NULL DEFAULT 'local',

@@ -16,7 +16,7 @@ export interface Wallet {
   net_balance?: number;
 }
 
-interface Category {
+export interface Category {
   id: string;
   name: string;
   icon?: string;
@@ -28,7 +28,7 @@ interface Category {
   sync_status: string;
 }
 
-interface Transaction {
+export interface Transaction {
   id: string;
   wallet_id: string;
   amount: number;
@@ -40,7 +40,9 @@ interface Transaction {
   to_wallet_id?: string; // Para transferencias
   is_subscription: number;
   subscription_frequency?: string;
+  next_payment_date?: number; // Fecha del próximo pago para suscripciones
   end_date?: number;
+  is_excluded: number; // 1 si debe excluirse de cálculos (suscripciones no pagadas)
   created_at: number;
   updated_at: number;
   sync_status: string;
@@ -131,21 +133,25 @@ interface CreateTransactionParams {
   to_wallet_id?: string;
   is_subscription?: number;
   subscription_frequency?: string;
+  next_payment_date?: number;
   end_date?: number;
+  is_excluded?: number;
 }
 
 interface UpdateTransactionParams {
-  wallet_id: string;
-  amount: number;
-  type: string;
-  title: string;
+  wallet_id?: string;
+  amount?: number;
+  type?: string;
+  title?: string;
   note?: string;
   timestamp?: number;
   category_id?: string;
   to_wallet_id?: string;
   is_subscription?: number;
   subscription_frequency?: string;
+  next_payment_date?: number;
   end_date?: number;
+  is_excluded?: number;
 }
 
 interface CategoryLimit {
@@ -193,6 +199,29 @@ export function useSQLiteService() {
   // ===== WALLETS =====
 
   /**
+   * Calcula el balance neto de una wallet específica
+   * Excluye transacciones marcadas con is_excluded = 1 (suscripciones no pagadas)
+   */
+  const calculateWalletBalance = async (walletId: string, initialBalance: number = 0): Promise<number> => {
+    // Obtenemos la suma de ingresos (excluyendo transacciones marcadas como excluidas)
+    const incomeResult = await db.getFirstAsync<{ total: number }>(
+      "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_id = ? AND type = 'income' AND is_excluded = 0",
+      [walletId]
+    );
+    const income = incomeResult?.total || 0;
+
+    // Obtenemos la suma de gastos (excluyendo transacciones marcadas como excluidas)
+    const expenseResult = await db.getFirstAsync<{ total: number }>(
+      "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_id = ? AND type = 'expense' AND is_excluded = 0",
+      [walletId]
+    );
+    const expense = expenseResult?.total || 0;
+
+    // Calculamos el balance neto: balance inicial + ingresos - gastos
+    return initialBalance + income - expense;
+  };
+
+  /**
    * Obtiene todas las billeteras con el balance neto calculado
    */
   const getWallets = async (): Promise<Wallet[]> => {
@@ -200,24 +229,9 @@ export function useSQLiteService() {
       "SELECT * FROM wallets ORDER BY name ASC"
     );
 
-    // Calculamos el balance neto para cada wallet
+    // Calculamos el balance neto para cada wallet usando la función centralizada
     for (const wallet of wallets) {
-      // Obtenemos la suma de ingresos
-      const incomeResult = await db.getFirstAsync<{ total: number }>(
-        "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_id = ? AND type = 'income'",
-        [wallet.id]
-      );
-      const income = incomeResult?.total || 0;
-
-      // Obtenemos la suma de gastos
-      const expenseResult = await db.getFirstAsync<{ total: number }>(
-        "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_id = ? AND type = 'expense'",
-        [wallet.id]
-      );
-      const expense = expenseResult?.total || 0;
-
-      // Calculamos el balance neto: balance inicial + ingresos - gastos
-      wallet.net_balance = wallet.balance + income - expense;
+      wallet.net_balance = await calculateWalletBalance(wallet.id, wallet.balance);
     }
 
     return wallets;
@@ -233,22 +247,8 @@ export function useSQLiteService() {
     );
 
     if (wallet) {
-      // Obtenemos la suma de ingresos
-      const incomeResult = await db.getFirstAsync<{ total: number }>(
-        "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_id = ? AND type = 'income'",
-        [wallet.id]
-      );
-      const income = incomeResult?.total || 0;
-
-      // Obtenemos la suma de gastos
-      const expenseResult = await db.getFirstAsync<{ total: number }>(
-        "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_id = ? AND type = 'expense'",
-        [wallet.id]
-      );
-      const expense = expenseResult?.total || 0;
-
-      // Calculamos el balance neto: balance inicial + ingresos - gastos
-      wallet.net_balance = wallet.balance + income - expense;
+      // Calculamos el balance neto usando la función centralizada
+      wallet.net_balance = await calculateWalletBalance(wallet.id, wallet.balance);
     }
 
     return wallet;
@@ -531,14 +531,16 @@ export function useSQLiteService() {
     to_wallet_id,
     is_subscription = 0,
     subscription_frequency,
+    next_payment_date,
     end_date,
+    is_excluded = 0,
   }: CreateTransactionParams): Promise<string> => {
     const id = uuid.v4();
 
     try {
       // Insertamos la transacción sin modificar el balance de la wallet
       await db.runAsync(
-        "INSERT INTO transactions (id, wallet_id, amount, type, title, note, timestamp, category_id, to_wallet_id, is_subscription, subscription_frequency, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO transactions (id, wallet_id, amount, type, title, note, timestamp, category_id, to_wallet_id, is_subscription, subscription_frequency, next_payment_date, end_date, is_excluded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
           id,
           wallet_id,
@@ -551,7 +553,9 @@ export function useSQLiteService() {
           to_wallet_id || null,
           is_subscription,
           subscription_frequency || null,
+          next_payment_date || null,
           end_date || null,
+          is_excluded,
         ]
       );
 
@@ -873,6 +877,7 @@ export function useSQLiteService() {
     // Wallets
     getWallets,
     getWalletById,
+    calculateWalletBalance,
     createWallet,
     updateWallet,
     deleteWallet,
