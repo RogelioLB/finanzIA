@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
+    "dev": "cross-env APP_VARIANT=development expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -11,6 +12,7 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.71",
     "@expo/vector-icons": "^14.1.0",
     "@react-native-async-storage/async-storage": "^2.1.2",
     "@react-native-community/datetimepicker": "8.4.1",
@@ -19,6 +21,7 @@
     "@react-navigation/bottom-tabs": "^7.8.6",
     "@react-navigation/elements": "^2.8.3",
     "@react-navigation/native": "^7.1.21",
+    "ai": "^5.0.100",
     "date-fns": "^4.1.0",
     "expo": "~53.0.24",
     "expo-blur": "~14.1.5",
@@ -58,12 +61,14 @@
     "react-native-uuid": "^2.0.3",
     "react-native-web": "~0.20.0",
     "react-native-webview": "13.13.5",
-    "toastify-react-native": "^7.2.3"
+    "toastify-react-native": "^7.2.3",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@babel/core": "^7.28.5",
     "@types/react": "~19.0.14",
     "@types/uuid": "^10.0.0",
+    "cross-env": "^10.1.0",
     "eslint": "^9.39.1",
     "eslint-config-expo": "~9.2.0",
     "i": "^0.3.7",

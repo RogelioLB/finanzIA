@@ -1,3 +1,4 @@
+import { useTransactions } from "@/contexts/TransactionsContext";
 import { useWallets } from "@/contexts/WalletsContext";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -18,6 +19,7 @@ export default function SubscriptionsScreen() {
   const router = useRouter();
   const { getTransactions, createTransaction, updateTransaction } = useSQLiteService();
   const { refreshWallets } = useWallets();
+  const { refreshTransactions } = useTransactions();
 
   const [subscriptions, setSubscriptions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,6 +87,7 @@ export default function SubscriptionsScreen() {
       });
 
       await refreshWallets();
+      await refreshTransactions();
       await loadSubscriptions(); // Recargar lista
       setShowSuccessAlert(true);
     } catch (error) {

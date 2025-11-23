@@ -1,29 +1,31 @@
 import AnimatedAlert from "@/components/AnimatedAlert";
 import AmountBottomSheet from "@/components/views/wallets/AmountBottomSheet";
+import { useTransactions } from "@/contexts/TransactionsContext";
 import { useWallets } from "@/contexts/WalletsContext";
 import { useSQLiteService, Wallet } from "@/lib/database/sqliteService";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function TransferScreen() {
   const router = useRouter();
   const { wallets, refreshWallets } = useWallets();
+  const {refreshTransactions} = useTransactions()
   const { createTransaction } = useSQLiteService();
 
   const [leftWallet, setLeftWallet] = useState<Wallet | null>(null);
@@ -104,15 +106,26 @@ export default function TransferScreen() {
       await createTransaction({
         wallet_id: fromWallet.id,
         amount: amountNum,
-        type: "transfer",
+        type: "expense",
         title: "Transferencia enviada",
         note: note.trim() || `Transferencia a ${toWallet.name}`,
         timestamp: Date.now(),
         to_wallet_id: toWallet.id,
       });
 
+      await createTransaction({
+        wallet_id: toWallet.id,
+        amount: amountNum,
+        type: "income",
+        title: "Transferencia recibida",
+        note: note.trim() || `Transferencia de ${fromWallet.name}`,
+        timestamp: Date.now(),
+        to_wallet_id: fromWallet.id,
+      });
+
       // Refrescar wallets
       await refreshWallets();
+      await refreshTransactions();
 
       // Limpiar formulario
       setLeftWallet(null);

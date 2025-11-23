@@ -12,6 +12,9 @@ interface TransactionDisplay {
   category_color?: string;
   wallet_name?: string;
   is_excluded: number;
+  is_subscription?: number;
+  subscription_frequency?: string | null;
+  next_payment_date?: number;
 }
 
 interface TransactionsContextType {
@@ -57,6 +60,9 @@ export function TransactionsProvider({ children }: TransactionsProviderProps) {
         category_color: transaction.category_color,
         wallet_name: transaction.wallet_name,
         is_excluded: transaction.is_excluded || 0,
+        is_subscription: transaction.is_subscription || 0,
+        subscription_frequency: transaction.subscription_frequency || null,
+        next_payment_date: transaction.next_payment_date || undefined,
       }));
       
       setTransactions(formattedTransactions);
@@ -73,7 +79,7 @@ export function TransactionsProvider({ children }: TransactionsProviderProps) {
   }, []);
 
   // Obtener las últimas 5 transacciones
-  const recentTransactions = transactions.slice(0, 5);
+  const recentTransactions = transactions.slice(0, 10);
 
   const value: TransactionsContextType = {
     transactions,

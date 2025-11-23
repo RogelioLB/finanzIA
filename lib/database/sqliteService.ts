@@ -592,11 +592,13 @@ export function useSQLiteService() {
       is_subscription = transaction.is_subscription,
       subscription_frequency = transaction.subscription_frequency,
       end_date = transaction.end_date,
+      next_payment_date = transaction.next_payment_date,
+      is_excluded = transaction.is_excluded,
     } = updates;
 
     // Actualizar la transacción sin modificar los balances de las wallets
     await db.runAsync(
-      "UPDATE transactions SET amount = ?, type = ?, title = ?, note = ?, category_id = ?, wallet_id = ?, timestamp = ?, to_wallet_id = ?, is_subscription = ?, subscription_frequency = ?, end_date = ? WHERE id = ?",
+      "UPDATE transactions SET amount = ?, type = ?, title = ?, note = ?, category_id = ?, wallet_id = ?, timestamp = ?, to_wallet_id = ?, is_subscription = ?, subscription_frequency = ?, end_date = ?, next_payment_date = ?, is_excluded = ? WHERE id = ?",
       [
         amount,
         type,
@@ -609,6 +611,8 @@ export function useSQLiteService() {
         is_subscription,
         subscription_frequency || null,
         end_date || null,
+        next_payment_date || null,
+        is_excluded !== undefined ? is_excluded : transaction.is_excluded,
         id,
       ]
     );
