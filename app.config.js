@@ -2,20 +2,20 @@ const IS_DEV = process.env.APP_VARIANT === 'development';
 
 export default {
   expo: {
-    name: IS_DEV ? 'Finance App (Dev)' : 'Finance App',
-    slug: 'finance-app',
+    name: IS_DEV ? 'FinanzIA (Dev)' : 'FinanzIA',
+    slug: 'finanzia',
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
-    scheme: 'financeapp',
+    scheme: 'finanzia',
     userInterfaceStyle: 'automatic',
     newArchEnabled: true,
     ios: {
       supportsTablet: true,
-      bundleIdentifier: IS_DEV ? 'com.financeapp.dev' : 'com.financeapp',
+      bundleIdentifier: IS_DEV ? 'com.finanzia.dev' : 'com.finanzia',
     },
     android: {
-      package: IS_DEV ? 'com.financeapp.dev' : 'com.financeapp',
+      package: IS_DEV ? 'com.finanzia.dev' : 'com.finanzia',
       adaptiveIcon: {
         foregroundImage: './assets/images/adaptive-icon.png',
         backgroundColor: '#ffffff',
