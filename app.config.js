@@ -3,7 +3,7 @@ const IS_DEV = process.env.APP_VARIANT === 'development';
 export default {
   expo: {
     name: IS_DEV ? 'FinanzIA (Dev)' : 'FinanzIA',
-    slug: 'finanzia',
+    slug: 'finance-app',
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
