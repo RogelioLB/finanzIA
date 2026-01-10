@@ -13,6 +13,7 @@ import "../global.css";
 
 import { AddTransactionProvider } from "@/contexts/AddTransactionContext";
 import { CategoriesProvider } from "@/contexts/CategoriesContext";
+import { ObjectivesProvider } from "@/contexts/ObjectivesContext";
 import { TransactionsProvider } from "@/contexts/TransactionsContext";
 import { WalletsProvider } from "@/contexts/WalletsContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
@@ -47,6 +48,7 @@ export default function RootLayout() {
           <WalletsProvider>
             <CategoriesProvider>
               <TransactionsProvider>
+                <ObjectivesProvider>
                 <AddTransactionProvider>
                   <ThemeProvider
                     value={colorScheme !== "dark" ? DarkTheme : DefaultTheme}
@@ -91,12 +93,22 @@ export default function RootLayout() {
                             animationDuration: 250,
                           }}
                         />
+                        <Stack.Screen
+                          name="objectives"
+                          options={{
+                            title: "Objectives",
+                            headerShown: false,
+                            animation: "fade_from_bottom",
+                            animationDuration: 250,
+                          }}
+                        />
                         <Stack.Screen name="+not-found" />
                       </Stack>
                       <StatusBar style="dark" />
                     </GestureHandlerRootView>
                   </ThemeProvider>
                 </AddTransactionProvider>
+                </ObjectivesProvider>
               </TransactionsProvider>
             </CategoriesProvider>
           </WalletsProvider>

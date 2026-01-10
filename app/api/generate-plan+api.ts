@@ -5,7 +5,7 @@ import { z } from 'zod';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { transactions, totalBalance, transactionCount } = body;
+    const { transactions, totalBalance, transactionCount, objectives } = body;
     
     if (!transactions || transactions.length < 10) {
       return Response.json(
@@ -100,6 +100,16 @@ export async function POST(request: Request) {
         };
       });
 
+    // Procesar objetivos del usuario
+    const userObjectives = objectives || [];
+    const savingsGoals = userObjectives.filter((o: any) => o.type === 'savings');
+    const userDebts = userObjectives.filter((o: any) => o.type === 'debt');
+
+    const totalDebtRemaining = userDebts.reduce((sum: number, d: any) =>
+      sum + Math.max(0, d.amount - d.current_amount), 0);
+    const totalSaved = savingsGoals.reduce((sum: number, g: any) => sum + g.current_amount, 0);
+    const totalSavingsGoal = savingsGoals.reduce((sum: number, g: any) => sum + g.amount, 0);
+
     // Crear prompt contextual con toda la información
     const prompt = `Eres un asesor financiero experto. Analiza las siguientes transacciones y genera un plan financiero personalizado en español.
 
@@ -135,6 +145,42 @@ ${Object.entries(debtSummary).map(([name, data]: [string, any]) => {
 Total en deudas/pagos únicos: $${debts.reduce((sum: number, d: any) => sum + d.amount, 0).toFixed(2)} MXN
 ` : ''}
 
+${userObjectives.length > 0 ? `
+OBJETIVOS FINANCIEROS DEL USUARIO:
+
+${savingsGoals.length > 0 ? `Metas de Ahorro (${savingsGoals.length}):
+${savingsGoals.map((g: any) => {
+  const remaining = g.amount - g.current_amount;
+  const progress = (g.current_amount / g.amount * 100).toFixed(0);
+  const dueDate = g.due_date ? new Date(g.due_date).toISOString().split('T')[0] : 'Sin fecha';
+  let monthlyNeeded = 0;
+  if (g.due_date) {
+    const msPerMonth = 30 * 24 * 60 * 60 * 1000;
+    const monthsRemaining = Math.max(1, Math.ceil((g.due_date - Date.now()) / msPerMonth));
+    monthlyNeeded = remaining / monthsRemaining;
+  }
+  return `- ${g.title}: $${g.current_amount.toFixed(2)}/$${g.amount.toFixed(2)} (${progress}%) - Restante: $${remaining.toFixed(2)} - Fecha: ${dueDate}${monthlyNeeded > 0 ? ` - Necesita: $${monthlyNeeded.toFixed(0)}/mes` : ''}`;
+}).join('\n')}
+Total ahorrado: $${totalSaved.toFixed(2)} de $${totalSavingsGoal.toFixed(2)}
+` : ''}
+
+${userDebts.length > 0 ? `Deudas Registradas (${userDebts.length}):
+${userDebts.map((d: any) => {
+  const remaining = d.amount - d.current_amount;
+  const progress = (d.current_amount / d.amount * 100).toFixed(0);
+  const dueDate = d.due_date ? new Date(d.due_date).toISOString().split('T')[0] : 'Sin fecha';
+  let monthlyNeeded = 0;
+  if (d.due_date) {
+    const msPerMonth = 30 * 24 * 60 * 60 * 1000;
+    const monthsRemaining = Math.max(1, Math.ceil((d.due_date - Date.now()) / msPerMonth));
+    monthlyNeeded = remaining / monthsRemaining;
+  }
+  return `- ${d.title}: Pagado $${d.current_amount.toFixed(2)} de $${d.amount.toFixed(2)} (${progress}%) - Restante: $${remaining.toFixed(2)} - Fecha límite: ${dueDate}${monthlyNeeded > 0 ? ` - Pago mensual necesario: $${monthlyNeeded.toFixed(0)}` : ''}`;
+}).join('\n')}
+Total deuda pendiente: $${totalDebtRemaining.toFixed(2)}
+` : ''}
+` : ''}
+
 TRANSACCIONES RECIENTES (últimas ${simplifiedTransactions.length}):
 ${simplifiedTransactions.map((t: any) => {
   const flags = [t.s, t.dt, t.ex].filter(f => f).join(',');
@@ -157,8 +203,20 @@ Genera un plan financiero completo que incluya:
 3. 3-5 recomendaciones específicas priorizadas (alta, media, baja) con ahorros potenciales
 4. Patrones de gasto principales con tendencias
 5. 2-3 metas financieras alcanzables con plazos y ahorros mensuales necesarios
+6. Si hay deudas del usuario, genera un plan detallado para pagarlas con:
+   - Pagos mensuales necesarios
+   - Tiempo estimado para liquidar cada deuda
+   - Estrategia de pago (avalancha o bola de nieve)
+   - Total a pagar mensualmente para todas las deudas
+7. Si hay metas de ahorro del usuario, evalúa si son alcanzables y sugiere ajustes
 
-Sé específico, práctico y motivador. Usa datos reales del usuario.`;
+IMPORTANTE para objetivos del usuario:
+- Considera los objetivos registrados por el usuario como prioridad
+- Calcula si el ahorro actual es suficiente para cumplir las metas en el tiempo establecido
+- Sugiere ajustes si las metas no son realistas con los ingresos actuales
+- Para deudas, prioriza las de mayor interés o las más urgentes
+
+Sé específico, práctico y motivador. Usa datos reales del usuario. Enfócate en acciones concretas que el usuario puede tomar AHORA.`;
 
     // Definir schema con Zod
     const financialPlanSchema = z.object({
@@ -192,6 +250,29 @@ Sé específico, práctico y motivador. Usa datos reales del usuario.`;
           monthlySavingsNeeded: z.number().describe('Ahorro mensual necesario'),
         })
       ),
+      debtPayoffPlan: z.object({
+        totalDebt: z.number().describe('Deuda total pendiente'),
+        monthlyPaymentNeeded: z.number().describe('Pago mensual necesario para todas las deudas'),
+        estimatedPayoffMonths: z.number().describe('Meses estimados para liquidar toda la deuda'),
+        strategy: z.enum(['avalanche', 'snowball']).describe('Estrategia recomendada: avalanche (mayor interés primero) o snowball (menor monto primero)'),
+        strategyExplanation: z.string().describe('Explicación de por qué se recomienda esta estrategia'),
+        debts: z.array(
+          z.object({
+            name: z.string().describe('Nombre de la deuda'),
+            remainingAmount: z.number().describe('Monto restante'),
+            monthlyPayment: z.number().describe('Pago mensual sugerido'),
+            payoffMonths: z.number().describe('Meses para liquidar'),
+            priority: z.number().describe('Orden de prioridad (1 = primera en pagar)'),
+          })
+        ),
+      }).optional().describe('Plan de pago de deudas (solo si hay deudas del usuario)'),
+      actionItems: z.array(
+        z.object({
+          action: z.string().describe('Acción específica a realizar'),
+          impact: z.enum(['high', 'medium', 'low']).describe('Impacto de la acción'),
+          timeframe: z.string().describe('Cuándo realizar la acción (esta semana, este mes, etc.)'),
+        })
+      ).describe('Acciones concretas que el usuario puede tomar de inmediato'),
     });
 
 

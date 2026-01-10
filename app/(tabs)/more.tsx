@@ -5,6 +5,7 @@ import { useWallets } from "@/contexts/WalletsContext";
 import { initDatabase } from "@/lib/database/initDatabase";
 import { Ionicons } from "@expo/vector-icons";
 import { reloadAppAsync } from "expo";
+import { useRouter } from "expo-router";
 import * as SQLite from "expo-sqlite";
 import React, { useState } from "react";
 import {
@@ -18,6 +19,7 @@ import {
 } from "react-native";
 
 export default function MoreScreen() {
+  const router = useRouter();
   const { refreshWallets } = useWallets();
   const { refreshTransactions } = useTransactions();
   const { refreshCategories } = useCategories();
@@ -115,6 +117,56 @@ export default function MoreScreen() {
           </View>
           <Text style={styles.title}>Más Opciones</Text>
           <Text style={styles.subtitle}>Configuración y herramientas</Text>
+        </View>
+
+        {/* Herramientas */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🛠️ Herramientas</Text>
+          <View style={styles.toolsGrid}>
+            <TouchableOpacity
+              style={styles.toolCard}
+              onPress={() => router.push("/objectives")}
+            >
+              <View style={[styles.toolIcon, { backgroundColor: "#E8F5E9" }]}>
+                <Ionicons name="flag-outline" size={24} color="#4CAF50" />
+              </View>
+              <Text style={styles.toolTitle}>Objetivos</Text>
+              <Text style={styles.toolSubtitle}>Metas y deudas</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.toolCard}
+              onPress={() => router.push("/wallets")}
+            >
+              <View style={[styles.toolIcon, { backgroundColor: "#E3F2FD" }]}>
+                <Ionicons name="wallet-outline" size={24} color="#2196F3" />
+              </View>
+              <Text style={styles.toolTitle}>Cuentas</Text>
+              <Text style={styles.toolSubtitle}>Gestionar wallets</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.toolCard}
+              onPress={() => router.push("/subscriptions")}
+            >
+              <View style={[styles.toolIcon, { backgroundColor: "#FFF3E0" }]}>
+                <Ionicons name="repeat-outline" size={24} color="#FF9800" />
+              </View>
+              <Text style={styles.toolTitle}>Suscripciones</Text>
+              <Text style={styles.toolSubtitle}>Pagos recurrentes</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.toolCard}
+              onPress={() => router.push("/wallets/transfer")}
+            >
+              <View style={[styles.toolIcon, { backgroundColor: "#F3E5F5" }]}>
+                <Ionicons name="swap-horizontal-outline" size={24} color="#9C27B0" />
+              </View>
+              <Text style={styles.toolTitle}>Transferir</Text>
+              <Text style={styles.toolSubtitle}>Entre cuentas</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Sección de Base de Datos */}
@@ -338,5 +390,39 @@ const styles = StyleSheet.create({
   infoDivider: {
     height: 1,
     backgroundColor: "#E5E7EB",
+  },
+  toolsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  toolCard: {
+    width: "48%",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  toolIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  toolTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 4,
+  },
+  toolSubtitle: {
+    fontSize: 13,
+    color: "#6B7280",
   },
 });

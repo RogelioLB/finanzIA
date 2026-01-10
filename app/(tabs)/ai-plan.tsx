@@ -1,7 +1,9 @@
 import TransitionLayout from "@/components/ui/TransitionLayout";
+import { useObjectives } from "@/contexts/ObjectivesContext";
 import { useTransactions } from "@/contexts/TransactionsContext";
 import { useWallets } from "@/contexts/WalletsContext";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -38,11 +40,32 @@ interface FinancialPlan {
     monthsToAchieve: number;
     monthlySavingsNeeded: number;
   }>;
+  debtPayoffPlan?: {
+    totalDebt: number;
+    monthlyPaymentNeeded: number;
+    estimatedPayoffMonths: number;
+    strategy: "avalanche" | "snowball";
+    strategyExplanation: string;
+    debts: Array<{
+      name: string;
+      remainingAmount: number;
+      monthlyPayment: number;
+      payoffMonths: number;
+      priority: number;
+    }>;
+  };
+  actionItems: Array<{
+    action: string;
+    impact: "high" | "medium" | "low";
+    timeframe: string;
+  }>;
 }
 
 export default function AiPlanScreen() {
+  const router = useRouter();
   const { transactions } = useTransactions();
   const { wallets } = useWallets();
+  const { objectives } = useObjectives();
   const [isGenerating, setIsGenerating] = useState(false);
   const [plan, setPlan] = useState<FinancialPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +94,16 @@ export default function AiPlanScreen() {
 
       const totalBalance = wallets.reduce((sum, w) => sum + (w.net_balance || 0), 0);
 
+      // Preparar objetivos para la API
+      const objectivesSummary = objectives.map(o => ({
+        id: o.id,
+        title: o.title,
+        amount: o.amount,
+        current_amount: o.current_amount,
+        type: o.type,
+        due_date: o.due_date,
+      }));
+
       const response = await fetch("/api/generate-plan", {
         method: "POST",
         headers: {
@@ -80,6 +113,7 @@ export default function AiPlanScreen() {
           transactions: transactionSummary,
           totalBalance,
           transactionCount: transactions.length,
+          objectives: objectivesSummary,
         }),
       });
 
@@ -341,6 +375,121 @@ export default function AiPlanScreen() {
                 </View>
               ))}
             </View>
+
+            {/* Plan de pago de deudas */}
+            {plan.debtPayoffPlan && plan.debtPayoffPlan.totalDebt > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>💳 Plan de Pago de Deudas</Text>
+                <View style={[styles.card, styles.debtSummaryCard]}>
+                  <View style={styles.debtSummaryRow}>
+                    <Text style={styles.debtSummaryLabel}>Deuda total:</Text>
+                    <Text style={[styles.debtSummaryValue, { color: "#FF6B6B" }]}>
+                      ${plan.debtPayoffPlan.totalDebt.toLocaleString("es-MX")}
+                    </Text>
+                  </View>
+                  <View style={styles.debtSummaryRow}>
+                    <Text style={styles.debtSummaryLabel}>Pago mensual:</Text>
+                    <Text style={[styles.debtSummaryValue, { color: "#7952FC" }]}>
+                      ${plan.debtPayoffPlan.monthlyPaymentNeeded.toLocaleString("es-MX")}
+                    </Text>
+                  </View>
+                  <View style={styles.debtSummaryRow}>
+                    <Text style={styles.debtSummaryLabel}>Tiempo estimado:</Text>
+                    <Text style={styles.debtSummaryValue}>
+                      {plan.debtPayoffPlan.estimatedPayoffMonths} meses
+                    </Text>
+                  </View>
+                  <View style={styles.strategyBadge}>
+                    <Ionicons
+                      name={plan.debtPayoffPlan.strategy === "avalanche" ? "trending-down" : "snow"}
+                      size={16}
+                      color="#7952FC"
+                    />
+                    <Text style={styles.strategyText}>
+                      Estrategia: {plan.debtPayoffPlan.strategy === "avalanche" ? "Avalancha" : "Bola de nieve"}
+                    </Text>
+                  </View>
+                  <Text style={styles.strategyExplanation}>
+                    {plan.debtPayoffPlan.strategyExplanation}
+                  </Text>
+                </View>
+
+                {plan.debtPayoffPlan.debts.map((debt, index) => (
+                  <View key={index} style={styles.card}>
+                    <View style={styles.debtHeader}>
+                      <View style={styles.debtPriorityBadge}>
+                        <Text style={styles.debtPriorityText}>#{debt.priority}</Text>
+                      </View>
+                      <Text style={styles.debtName}>{debt.name}</Text>
+                    </View>
+                    <View style={styles.debtDetails}>
+                      <View style={styles.goalRow}>
+                        <Text style={styles.goalLabel}>Restante:</Text>
+                        <Text style={[styles.goalValue, { color: "#FF6B6B" }]}>
+                          ${debt.remainingAmount.toLocaleString("es-MX")}
+                        </Text>
+                      </View>
+                      <View style={styles.goalRow}>
+                        <Text style={styles.goalLabel}>Pago mensual:</Text>
+                        <Text style={[styles.goalValue, { color: "#7952FC" }]}>
+                          ${debt.monthlyPayment.toLocaleString("es-MX")}
+                        </Text>
+                      </View>
+                      <View style={styles.goalRow}>
+                        <Text style={styles.goalLabel}>Liquidar en:</Text>
+                        <Text style={styles.goalValue}>
+                          {debt.payoffMonths} meses
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Acciones a tomar */}
+            {plan.actionItems && plan.actionItems.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>✅ Acciones a Tomar</Text>
+                {plan.actionItems.map((item, index) => (
+                  <View key={index} style={styles.card}>
+                    <View style={styles.actionHeader}>
+                      <View
+                        style={[
+                          styles.impactBadge,
+                          { backgroundColor: getPriorityColor(item.impact) },
+                        ]}
+                      >
+                        <Ionicons
+                          name={
+                            item.impact === "high"
+                              ? "flash"
+                              : item.impact === "medium"
+                              ? "time"
+                              : "leaf"
+                          }
+                          size={12}
+                          color="#fff"
+                        />
+                      </View>
+                      <Text style={styles.actionTimeframe}>{item.timeframe}</Text>
+                    </View>
+                    <Text style={styles.actionText}>{item.action}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Botón para gestionar objetivos */}
+            <TouchableOpacity
+              style={styles.objectivesButton}
+              onPress={() => router.push("/objectives")}
+            >
+              <Ionicons name="flag-outline" size={20} color="#7952FC" />
+              <Text style={styles.objectivesButtonText}>
+                Gestionar Metas y Deudas
+              </Text>
+            </TouchableOpacity>
 
             {/* Botón regenerar */}
             <TouchableOpacity
@@ -614,6 +763,114 @@ const styles = StyleSheet.create({
     borderColor: "#7952FC",
   },
   regenerateButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#7952FC",
+  },
+  debtSummaryCard: {
+    backgroundColor: "#FFF5F5",
+    borderWidth: 1,
+    borderColor: "#FED7D7",
+  },
+  debtSummaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  debtSummaryLabel: {
+    fontSize: 15,
+    color: "#6B7280",
+  },
+  debtSummaryValue: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  strategyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#F3F0FF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  strategyText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#7952FC",
+  },
+  strategyExplanation: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#374151",
+  },
+  debtHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+  },
+  debtPriorityBadge: {
+    backgroundColor: "#7952FC",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  debtPriorityText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  debtName: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#1F2937",
+    flex: 1,
+  },
+  debtDetails: {
+    gap: 8,
+  },
+  actionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+  },
+  impactBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionTimeframe: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6B7280",
+    textTransform: "uppercase",
+  },
+  actionText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#374151",
+  },
+  objectivesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    margin: 16,
+    marginBottom: 8,
+    padding: 16,
+    backgroundColor: "#F3F0FF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+  },
+  objectivesButtonText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#7952FC",
