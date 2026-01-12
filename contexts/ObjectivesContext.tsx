@@ -111,9 +111,10 @@ export const ObjectivesProvider: React.FC<ObjectivesProviderProps> = ({
       setError(null);
       const objectivesData = await sqliteService.getObjectives();
       // Enriquecer con campos calculados y filtrar archivados
-      const enrichedObjectives = objectivesData
-        .filter((obj: Objective) => obj.is_archived !== 1)
-        .map(enrichObjective);
+      const enrichedObjectives = (objectivesData as any[])
+        .filter((obj: any) => obj.is_archived !== 1)
+        .map((obj: any) => enrichObjective(obj as Objective));
+
       setObjectives(enrichedObjectives);
     } catch (err) {
       console.error("Error loading objectives:", err);

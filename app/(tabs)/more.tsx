@@ -166,6 +166,28 @@ export default function MoreScreen() {
               <Text style={styles.toolTitle}>Transferir</Text>
               <Text style={styles.toolSubtitle}>Entre cuentas</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.toolCard}
+              onPress={() => router.push("/credit-cards")}
+            >
+              <View style={[styles.toolIcon, { backgroundColor: "#FEF3C7" }]}>
+                <Ionicons name="card-outline" size={24} color="#D97706" />
+              </View>
+              <Text style={styles.toolTitle}>Tarjetas</Text>
+              <Text style={styles.toolSubtitle}>Crédito y débito</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.toolCard}
+              onPress={() => router.push("/settings")}
+            >
+              <View style={[styles.toolIcon, { backgroundColor: "#E0E7FF" }]}>
+                <Ionicons name="settings-outline" size={24} color="#4F46E5" />
+              </View>
+              <Text style={styles.toolTitle}>Ajustes</Text>
+              <Text style={styles.toolSubtitle}>Configuración</Text>
+            </TouchableOpacity>
           </View>
         </View>
 

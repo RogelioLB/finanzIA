@@ -1,3 +1,4 @@
+import { triggerLightTap } from "@/hooks/useHaptics";
 import { useRouter } from "expo-router";
 import { Text, TouchableOpacity, View } from "react-native";
 import Icon, { IconProps } from "./ui/Icon";
@@ -46,6 +47,7 @@ export default function QuickActions() {
         <TouchableOpacity
           key={action.name}
           onPress={() => {
+            triggerLightTap();
             router.push((action.href || "/wallets/" + action.name) as any);
           }}
           className="flex-col justify-center items-center gap-1"

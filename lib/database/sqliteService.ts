@@ -77,7 +77,7 @@ interface CategoryBudgetLimit {
   spent_amount?: number;
 }
 
-interface Objective {
+export interface Objective {
   id: string;
   title: string;
   amount: number;
@@ -88,6 +88,41 @@ interface Objective {
   created_at: number;
   updated_at: number;
   sync_status: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: number;
+  metadata?: ChatMessageMetadata;
+  created_at?: number;
+  sync_status?: string;
+  isStreaming?: boolean;
+}
+
+export interface ChatMessageMetadata {
+  type?: 'text' | 'chart' | 'table' | 'plan';
+  charts?: ChartConfig[];
+  tables?: TableConfig[];
+  actionButtons?: ActionButtonConfig[];
+}
+
+export interface ChartConfig {
+  type: 'bar' | 'pie' | 'line';
+  title: string;
+  data: any[];
+}
+
+export interface TableConfig {
+  headers: string[];
+  rows: string[][];
+}
+
+export interface ActionButtonConfig {
+  type: 'save_objective' | 'create_budget';
+  label: string;
+  data: any;
 }
 
 // Interfaces para parámetros de métodos
@@ -876,6 +911,45 @@ export function useSQLiteService() {
     await db.runAsync("DELETE FROM objectives WHERE id = ?", [id]);
   };
 
+  // ============================================
+  // Chat Messages Functions
+  // ============================================
+
+  /**
+   * Obtiene todos los mensajes del chat
+   */
+  const getChatMessages = async (): Promise<ChatMessage[]> => {
+    const messages = await db.getAllAsync(
+      "SELECT * FROM chat_messages ORDER BY timestamp ASC"
+    );
+    return messages as ChatMessage[];
+  };
+
+  /**
+   * Guarda un mensaje del chat
+   */
+  const saveChatMessage = async (message: ChatMessage): Promise<void> => {
+    await db.runAsync(
+      `INSERT INTO chat_messages (id, role, content, timestamp, metadata, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        message.id,
+        message.role,
+        message.content,
+        message.timestamp,
+        message.metadata ? JSON.stringify(message.metadata) : null,
+        Date.now(),
+      ]
+    );
+  };
+
+  /**
+   * Limpia el historial de mensajes del chat
+   */
+  const clearChatHistory = async (): Promise<void> => {
+    await db.runAsync("DELETE FROM chat_messages");
+  };
+
   // Retorna todos los servicios de la base de datos
   return {
     // Wallets
@@ -913,5 +987,10 @@ export function useSQLiteService() {
     createObjective,
     updateObjective,
     deleteObjective,
+
+    // Chat Messages
+    getChatMessages,
+    saveChatMessage,
+    clearChatHistory,
   };
 }

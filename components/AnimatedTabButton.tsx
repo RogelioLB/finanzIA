@@ -1,3 +1,4 @@
+import { triggerLightTap } from "@/hooks/useHaptics";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { TabTrigger } from "expo-router/ui";
 import { Pressable } from "react-native";
@@ -16,6 +17,7 @@ type AnimatedTabButtonProps = {
   href: string;
   isActive: boolean;
   customIcon?: string;
+  id?: string;
 };
 
 export function AnimatedTabButton({
@@ -24,6 +26,7 @@ export function AnimatedTabButton({
   href,
   isActive,
   customIcon,
+  id,
 }: AnimatedTabButtonProps) {
   const animatedStyles = useAnimatedStyle(() => {
     return {
@@ -62,8 +65,9 @@ export function AnimatedTabButton({
   const normalizedName = name.toLowerCase().replace(/\s+/g, " ");
 
   return (
-    <TabTrigger name={normalizedName} href={href as any} asChild>
+    <TabTrigger name={id || normalizedName} href={href as any} asChild>
       <Pressable
+        onPress={() => triggerLightTap()}
         style={{
           flexDirection: "column",
           alignItems: "center",

@@ -19,6 +19,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const CLOSE_THRESHOLD = SCREEN_HEIGHT * 0.5;
 
 interface BottomSheetBaseProps {
   children: ReactNode;
@@ -38,6 +39,10 @@ export default function BottomSheetBase({
   const overlayOpacity = useSharedValue(0);
   const context = useSharedValue({ y: 0 });
   const keyboard = useAnimatedKeyboard();
+  
+  // Guard to prevent multiple close calls
+  const isClosing = useRef(false);
+  const hasCalledOnClose = useRef(false);
 
   // Define open and close functions first
   const open = useCallback(() => {
@@ -58,32 +63,42 @@ export default function BottomSheetBase({
     });
   }, [translateY, overlayOpacity]);
 
+  // Safe wrapper to call onClose only once from the JS thread
+  const safeOnClose = useCallback(() => {
+    if (hasCalledOnClose.current) return;
+    hasCalledOnClose.current = true;
+    Keyboard.dismiss();
+    
+    // Use setTimeout to ensure animation completes before calling onClose
+    setTimeout(() => {
+      if (onClose) {
+        onClose();
+      }
+    }, 100);
+  }, [onClose]);
+
   const close = useCallback(() => {
     "worklet";
+    // Prevent multiple close calls from the UI thread
+    if (isClosing.current) return;
+    
+    runOnJS(() => { isClosing.current = true; })();
+    
     cancelAnimation(translateY);
     cancelAnimation(overlayOpacity);
 
-    translateY.value = withSpring(SCREEN_HEIGHT, {
-      damping: 25,
-      stiffness: 400,
-      mass: 0.6,
-      overshootClamping: true,
-      restDisplacementThreshold: 0.01,
-      restSpeedThreshold: 0.01,
+    translateY.value = withTiming(SCREEN_HEIGHT, {
+      duration: 250,
+      easing: Easing.out(Easing.quad),
     });
     overlayOpacity.value = withTiming(0, {
-      duration: 150,
+      duration: 200,
       easing: Easing.in(Easing.quad),
     });
 
-    // Solo cerrar el teclado si el bottom sheet estaba realmente abierto
-    if (translateY.value < SCREEN_HEIGHT * 0.5) {
-      runOnJS(Keyboard.dismiss)();
-    }
-    if (onClose) {
-      runOnJS(onClose)();
-    }
-  }, [translateY, overlayOpacity, onClose]);
+    // Call the safe wrapper after starting the animation
+    runOnJS(safeOnClose)();
+  }, [translateY, overlayOpacity, safeOnClose]);
 
   // Animated styles
   const animatedStyle = useAnimatedStyle(() => ({
@@ -159,6 +174,12 @@ export default function BottomSheetBase({
   const firstRenderRef = useRef(true);
 
   useEffect(() => {
+    // Reset guards when visibility changes to true (opening)
+    if (visible) {
+      isClosing.current = false;
+      hasCalledOnClose.current = false;
+    }
+    
     // Solo abrir en la primera renderización si visible es true
     // No cerrar en la primera renderización aunque visible sea false
     if (firstRenderRef.current) {
@@ -172,7 +193,7 @@ export default function BottomSheetBase({
     // Después de la primera renderización, responder normalmente a los cambios de visible
     if (visible) {
       open();
-    } else {
+    } else if (!isClosing.current) {
       close();
     }
   }, [visible, open, close]);
@@ -183,12 +204,13 @@ export default function BottomSheetBase({
       <Animated.View
         className="absolute top-0 left-0 right-0 bottom-0 bg-black z-40"
         style={overlayStyle}
-        pointerEvents={visible ? "auto" : "none"}
+        pointerEvents={visible && !isClosing.current ? "auto" : "none"}
       >
         <TouchableWithoutFeedback 
           onPress={() => {
-            Keyboard.dismiss();
-            close();
+            if (!isClosing.current) {
+              close();
+            }
           }}
         >
           <View className="w-full h-full" />

@@ -1,7 +1,8 @@
+import { Skeleton } from "@/components/ui/Skeleton";
 import useBalance from "@/hooks/useBalance";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, { FadeIn, SlideInRight } from "react-native-reanimated";
 
 export default function AccountsWidget() {
@@ -10,10 +11,25 @@ export default function AccountsWidget() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#7952FC" />
-        <Text style={styles.loadingText}>Cargando wallets...</Text>
-      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+      >
+        {[1, 2, 3].map((i) => (
+          <View key={i} style={[styles.walletItem, { backgroundColor: '#F3F4F6' }]}>
+            <View style={styles.walletHeader}>
+              <Skeleton width={32} height={32} borderRadius={16} />
+              <Skeleton width={40} height={20} borderRadius={10} />
+            </View>
+            <View style={styles.walletContent}>
+              <Skeleton width={100} height={14} />
+              <Skeleton width={80} height={18} style={{ marginTop: 8 }} />
+            </View>
+          </View>
+        ))}
+      </ScrollView>
     );
   }
 

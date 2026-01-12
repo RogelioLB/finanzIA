@@ -9,6 +9,7 @@ import {
   getMonthName,
   sortTransactionsByDate,
 } from "@/utils";
+import { Ionicons } from "@expo/vector-icons";
 import React, {
   useCallback,
   useEffect,
@@ -23,6 +24,7 @@ import {
   SectionList,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   ViewToken,
@@ -58,6 +60,8 @@ export default function HistoryScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const transactionsListRef = useRef<FlatList>(null);
   const [selectedTabIndex, setSelectedTabIndex] = useState(6); // Mes actual en el centro
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const indicatorPosition = useSharedValue(0);
   const screenWidth = Dimensions.get("window").width;
   const tabWidth = 80;
@@ -133,6 +137,21 @@ export default function HistoryScreen() {
     }).sort((a, b) => b.date.getTime() - a.date.getTime()); // Ordenar por fecha descendente (más reciente primero)
   }, []);
   
+  // Filter transactions by search query
+  const searchFilteredTransactions = useMemo(() => {
+    if (!searchQuery.trim()) return transactions;
+    
+    const query = searchQuery.toLowerCase().trim();
+    return transactions.filter((t) => {
+      return (
+        t.title.toLowerCase().includes(query) ||
+        (t.category_name && t.category_name.toLowerCase().includes(query)) ||
+        (t.wallet_name && t.wallet_name.toLowerCase().includes(query)) ||
+        t.amount.toString().includes(query)
+      );
+    });
+  }, [transactions, searchQuery]);
+
   // Agrupar transacciones por mes
   const groupedTransactions = useMemo(() => {
     const grouped: Record<string, {title: string; data: TransactionItem[]; date: Date}[]> = {};
@@ -141,7 +160,7 @@ export default function HistoryScreen() {
     monthTabs.forEach((tab) => {
       const monthKey = `${tab.year}-${tab.month}`;
       const filtered = filterTransactionsByMonth(
-        transactions,
+        searchFilteredTransactions,
         tab.month,
         tab.year
       );
@@ -149,7 +168,7 @@ export default function HistoryScreen() {
     });
 
     return grouped;
-  }, [transactions, monthTabs, groupByDay]);
+  }, [searchFilteredTransactions, monthTabs, groupByDay]);
 
   // Obtener transacciones para el mes seleccionado
   const filteredTransactions = useMemo(() => {
@@ -392,11 +411,52 @@ export default function HistoryScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Historial</Text>
-          <Text style={styles.subtitle}>
-            {monthTabs[selectedTabIndex]?.label}{" "}
-            {monthTabs[selectedTabIndex]?.year}
-          </Text>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.title}>Historial</Text>
+              <Text style={styles.subtitle}>
+                {monthTabs[selectedTabIndex]?.label}{" "}
+                {monthTabs[selectedTabIndex]?.year}
+              </Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.searchToggle}
+              onPress={() => setIsSearching(!isSearching)}
+            >
+              <Ionicons 
+                name={isSearching ? "close" : "search"} 
+                size={22} 
+                color="#6B7280" 
+              />
+            </TouchableOpacity>
+          </View>
+          
+          {/* Search Bar */}
+          {isSearching && (
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={18} color="#9CA3AF" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Buscar transacciones..."
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery("")}>
+                  <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+          
+          {searchQuery.length > 0 && (
+            <Text style={styles.searchResultsText}>
+              {searchFilteredTransactions.length} resultado(s) encontrado(s)
+            </Text>
+          )}
         </View>
 
         {/* Month Stats */}
@@ -643,6 +703,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 10,
+  },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  searchToggle: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 12,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#1F2937",
+    padding: 0,
+  },
+  searchResultsText: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginTop: 8,
   },
   title: {
     fontSize: 28,

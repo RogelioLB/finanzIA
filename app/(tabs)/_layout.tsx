@@ -1,4 +1,5 @@
 import { AnimatedTabButton } from "@/components/AnimatedTabButton";
+import { triggerMediumTap } from "@/hooks/useHaptics";
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { TabList, Tabs, TabSlot, TabTrigger } from "expo-router/ui";
@@ -14,15 +15,18 @@ export default function Layout() {
     <Tabs>
       <View className="flex-1 relative">
         <TabSlot />
-        <TouchableHighlight
-          onPress={() => {
-            // Using type assertion to bypass type checking for external route
-            router.navigate("/add-transaction");
-          }}
-          className="absolute bottom-10 right-8 z-10 bg-indigo-800 rounded-md p-3 "
-        >
-          <Ionicons name="add" size={24} color="white" />
-        </TouchableHighlight>
+        {pathname !== "/ai-plan" && (
+          <TouchableHighlight
+            onPress={() => {
+              triggerMediumTap();
+              // Using type assertion to bypass type checking for external route
+              router.navigate("/add-transaction");
+            }}
+            className="absolute bottom-10 right-8 z-10 bg-indigo-800 rounded-md p-3 "
+          >
+            <Ionicons name="add" size={24} color="white" />
+          </TouchableHighlight>
+        )}
       </View>
       <SafeAreaView edges={["bottom"]}>
         <View
@@ -47,10 +51,11 @@ export default function Layout() {
             isActive={pathname === "/ai-plan"}
           />
           <AnimatedTabButton
-            name="More"
-            customIcon="dot"
+            name="Más"
+            customIcon="ellipsis-horizontal"
             href="/more"
             isActive={pathname === "/more"}
+            id="more"
           />
         </View>
       </SafeAreaView>

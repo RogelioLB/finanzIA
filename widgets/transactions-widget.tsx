@@ -1,8 +1,8 @@
+import { SkeletonTransactionList } from "@/components/ui/Skeleton";
 import { useTransactions } from "@/hooks/useTransactions";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
-  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,9 +18,11 @@ export default function TransactionsWidget() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#7952FC" />
-        <Text style={styles.loadingText}>Cargando transacciones...</Text>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Transacciones Recientes</Text>
+        </View>
+        <SkeletonTransactionList count={4} />
       </View>
     );
   }

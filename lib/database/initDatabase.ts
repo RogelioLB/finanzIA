@@ -5,7 +5,7 @@ import uuid from "react-native-uuid";
  * Constante para la versión actual de la base de datos
  * Incrementar cuando se realicen cambios en el esquema
  */
-const DATABASE_VERSION = 8;
+const DATABASE_VERSION = 12;
 
 /**
  * Inicializa la estructura de la base de datos
@@ -40,6 +40,10 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       await db.execAsync("DROP TABLE IF EXISTS objectives");
       await db.execAsync("DROP TABLE IF EXISTS categories");
       await db.execAsync("DROP TABLE IF EXISTS wallets");
+      await db.execAsync("DROP TABLE IF EXISTS credit_cards");
+      await db.execAsync("DROP TABLE IF EXISTS chat_messages");
+      await db.execAsync("DROP TABLE IF EXISTS user_settings");
+      await db.execAsync("DROP TABLE IF EXISTS widget_settings");
     }
 
     // Tabla de wallets (billeteras)
@@ -167,6 +171,88 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
+    // Tabla de configuración del usuario
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS user_settings (
+        id TEXT PRIMARY KEY DEFAULT 'main',
+        user_name TEXT,
+        default_currency TEXT NOT NULL DEFAULT 'MXN',
+        onboarding_completed INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+      )
+    `);
+
+    // Tabla de configuración de widgets
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS widget_settings (
+        id TEXT PRIMARY KEY,
+        widget_type TEXT NOT NULL,
+        is_enabled INTEGER NOT NULL DEFAULT 1,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+      )
+    `);
+
+    // Tabla de tarjetas de crédito
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS credit_cards (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        bank TEXT,
+        last_four_digits TEXT,
+        credit_limit REAL NOT NULL DEFAULT 0,
+        current_balance REAL NOT NULL DEFAULT 0,
+        cut_off_day INTEGER NOT NULL DEFAULT 1,
+        payment_due_day INTEGER NOT NULL DEFAULT 15,
+        interest_rate REAL DEFAULT 0,
+        color TEXT,
+        icon TEXT,
+        is_archived INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+        sync_status TEXT NOT NULL DEFAULT 'local'
+      )
+    `);
+
+    // Tabla de mensajes del chat con IA
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id TEXT PRIMARY KEY,
+        role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
+        content TEXT NOT NULL,
+        timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+        metadata TEXT,
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+        sync_status TEXT NOT NULL DEFAULT 'local'
+      )
+    `);
+
+    // Insertar configuración de usuario por defecto
+    await db.execAsync(`
+      INSERT OR IGNORE INTO user_settings (id, default_currency, onboarding_completed)
+      VALUES ('main', 'MXN', 0)
+    `);
+
+    // Insertar widgets por defecto
+    const defaultWidgets = [
+      { type: 'greeting', position: 0 },
+      { type: 'accounts', position: 1 },
+      { type: 'balance', position: 2 },
+      { type: 'quick_actions', position: 3 },
+      { type: 'credit_cards', position: 4 },
+      { type: 'objectives', position: 5 },
+      { type: 'transactions', position: 6 },
+    ];
+
+    for (const widget of defaultWidgets) {
+      await db.execAsync(`
+        INSERT OR IGNORE INTO widget_settings (id, widget_type, is_enabled, position)
+        VALUES ('${uuid.v4()}', '${widget.type}', 1, ${widget.position})
+      `);
+    }
+
     // Insertamos categorías predefinidas para gastos
     const expenseCategories = [
       { name: "Comida", icon: "🍔", color: "#FF6B6B" },
@@ -179,7 +265,7 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       { name: "Educación", icon: "📚", color: "#F9C80E" },
       { name: "Otros Gastos", icon: "💭", color: "#FF9F1C" }
     ];
-    
+
     // Insertamos categorías predefinidas para ingresos
     const incomeCategories = [
       { name: "Salario", icon: "💰", color: "#4ECDC4" },
@@ -189,7 +275,7 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       { name: "Reembolso", icon: "💸", color: "#FF9F1C" },
       { name: "Otros Ingresos", icon: "💭", color: "#4ECDC4" }
     ];
-    
+
     // Insertar categorías de gastos
     for (const category of expenseCategories) {
       await db.execAsync(`
@@ -198,7 +284,7 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = '${category.name}' AND is_income = 0);
       `);
     }
-    
+
     // Insertar categorías de ingresos
     for (const category of incomeCategories) {
       await db.execAsync(`
@@ -218,4 +304,10 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
 
   // Actualizar la versión de la base de datos al finalizar
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
+
+  // Generar datos de muestra en modo desarrollo
+  if (__DEV__) {
+    const { generateAllSampleData } = await import('../devSampleData');
+    await generateAllSampleData(db);
+  }
 }
