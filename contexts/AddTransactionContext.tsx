@@ -78,7 +78,7 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
   const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);
   const { wallets, isLoading, refreshWallets } = useWallets();
   const { refreshTransactions } = useTransactions();
-  const { createTransaction: createTransactionDB, updateWalletBalance, updateObjective, getObjectiveById } = useSQLiteService();
+  const { createTransaction: createTransactionDB, updateWalletBalance, updateObjective, getObjectiveById, getObjectiveByCreditWallet, createObjective, getWalletById } = useSQLiteService();
   const { refreshObjectives } = useObjectives();
 
   const createTransaction = async (timestamp?: number): Promise<boolean> => {
@@ -152,6 +152,36 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
               current_amount: objective.current_amount + progressDelta,
             });
           }
+        }
+      }
+
+      // Si la transacción es en una tarjeta de crédito, crear/actualizar deuda automáticamente
+      if (selectedWallet.type === "credit") {
+        // Buscar si ya existe una deuda para esta tarjeta
+        let debtObjective = await getObjectiveByCreditWallet(selectedWallet.id);
+
+        // Obtener el wallet actualizado para obtener el balance actual
+        const updatedWallet = await getWalletById(selectedWallet.id);
+        if (!updatedWallet) {
+          throw new Error("Wallet not found");
+        }
+
+        const debtAmount = updatedWallet.balance; // El balance de la tarjeta es la deuda
+
+        if (debtObjective) {
+          // Actualizar la deuda existente con el nuevo balance de la tarjeta
+          await updateObjective(debtObjective.id, {
+            current_amount: debtAmount,
+          });
+        } else if (debtAmount > 0) {
+          // Crear una nueva deuda si no existe y hay balance en la tarjeta
+          await createObjective({
+            title: `Deuda: ${selectedWallet.name}`,
+            amount: selectedWallet.credit_limit || debtAmount,
+            current_amount: debtAmount,
+            type: "debt",
+            credit_wallet_id: selectedWallet.id,
+          });
         }
       }
 

@@ -1001,6 +1001,16 @@ export function useSQLiteService() {
   };
 
   /**
+   * Obtiene un objetivo de deuda por credit_wallet_id
+   */
+  const getObjectiveByCreditWallet = async (creditWalletId: string): Promise<Objective | null> => {
+    return await db.getFirstAsync<Objective>(
+      "SELECT * FROM objectives WHERE credit_wallet_id = ? AND type = 'debt'",
+      [creditWalletId]
+    );
+  };
+
+  /**
    * Crea un nuevo objetivo
    */
   const createObjective = async ({
@@ -1132,6 +1142,7 @@ export function useSQLiteService() {
     // Objectives
     getObjectives,
     getObjectiveById,
+    getObjectiveByCreditWallet,
     createObjective,
     updateObjective,
     deleteObjective,
