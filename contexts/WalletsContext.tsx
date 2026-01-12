@@ -18,6 +18,14 @@ interface WalletsContextType {
     icon: string;
     color: string;
     currency?: string;
+    type?: 'regular' | 'credit';
+    // Credit wallet fields
+    bank?: string;
+    last_four_digits?: string;
+    credit_limit?: number;
+    cut_off_day?: number;
+    payment_due_day?: number;
+    interest_rate?: number;
   }) => Promise<string>;
   updateWallet: (
     id: string,
@@ -27,6 +35,13 @@ interface WalletsContextType {
       icon?: string;
       color?: string;
       currency?: string;
+      type?: 'regular' | 'credit';
+      bank?: string;
+      last_four_digits?: string;
+      credit_limit?: number;
+      cut_off_day?: number;
+      payment_due_day?: number;
+      interest_rate?: number;
     }
   ) => Promise<void>;
   deleteWallet: (id: string) => Promise<void>;
