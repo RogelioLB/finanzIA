@@ -366,6 +366,7 @@ export default function TransferScreen() {
         }}
         onClose={() => setShowLeftWalletSheet(false)}
         title="Selecciona cuenta"
+        getDisplayBalance={getDisplayBalance}
       />
 
       {/* Right Wallet Sheet */}
@@ -379,6 +380,7 @@ export default function TransferScreen() {
         }}
         onClose={() => setShowRightWalletSheet(false)}
         title="Selecciona cuenta"
+        getDisplayBalance={getDisplayBalance}
       />
 
       {/* Alertas */}
@@ -423,6 +425,7 @@ interface WalletSelectionSheetProps {
   onSelect: (wallet: Wallet) => void;
   onClose: () => void;
   title: string;
+  getDisplayBalance: (wallet: Wallet) => number;
 }
 
 function WalletSelectionSheet({
@@ -432,6 +435,7 @@ function WalletSelectionSheet({
   onSelect,
   onClose,
   title,
+  getDisplayBalance,
 }: WalletSelectionSheetProps) {
   if (!visible) return null;
 
