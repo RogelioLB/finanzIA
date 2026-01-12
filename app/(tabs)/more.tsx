@@ -180,6 +180,17 @@ export default function MoreScreen() {
 
             <TouchableOpacity
               style={styles.toolCard}
+              onPress={() => router.push("/categories")}
+            >
+              <View style={[styles.toolIcon, { backgroundColor: "#F0F9FF" }]}>
+                <Ionicons name="pricetags-outline" size={24} color="#0EA5E9" />
+              </View>
+              <Text style={styles.toolTitle}>Categorías</Text>
+              <Text style={styles.toolSubtitle}>Crear y editar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.toolCard}
               onPress={() => router.push("/settings")}
             >
               <View style={[styles.toolIcon, { backgroundColor: "#E0E7FF" }]}>

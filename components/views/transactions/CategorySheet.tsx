@@ -86,8 +86,8 @@ export default function CategorySheet({
       visible={visible}
       onClose={onClose}
     >
-      {/* Transaction type tabs */}
-      <View className="flex flex-row mb-5 bg-[#15152b] rounded-xl p-1">
+        {/* Transaction type tabs */}
+        <View className="flex flex-row mb-5 bg-[#15152b] rounded-xl p-1">
         <TouchableOpacity
           className={`flex-1 py-2 px-4 rounded-lg ${activeTab === "expense" ? "bg-primary" : "bg-transparent"}`}
           onPress={() => setActiveTab("expense")}

@@ -17,6 +17,7 @@ interface CategoriesContextType {
   loading: boolean;
   error: string | null;
   refreshCategories: () => Promise<void>;
+  createCategory: (params: { name: string; icon: string; color?: string; type: 'expense' | 'income' }) => Promise<string>;
 }
 
 const CategoriesContext = createContext<CategoriesContextType | undefined>(undefined);
@@ -29,13 +30,15 @@ export function CategoriesProvider({ children }: CategoriesProviderProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { getCategories } = useSQLiteService();
+  const { getCategories, createCategory: createCategoryDB } = useSQLiteService();
   const getCategoriesRef = useRef(getCategories);
+  const createCategoryDBRef = useRef(createCategoryDB);
   
   // Actualizar las referencias cuando cambien las funciones
   useEffect(() => {
     getCategoriesRef.current = getCategories;
-  }, [getCategories]);
+    createCategoryDBRef.current = createCategoryDB;
+  }, [getCategories, createCategoryDB]);
 
 
   // Memorizar refreshCategories con useCallback
@@ -69,6 +72,33 @@ export function CategoriesProvider({ children }: CategoriesProviderProps) {
     refreshCategories();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Crear una nueva categoría
+  const createCategory = React.useCallback(async ({
+    name,
+    icon,
+    color,
+    type,
+  }: {
+    name: string;
+    icon: string;
+    color?: string;
+    type: 'expense' | 'income';
+  }): Promise<string> => {
+    try {
+      const id = await createCategoryDBRef.current({
+        name,
+        icon,
+        color,
+        is_income: type === 'income',
+      });
+      await refreshCategories();
+      return id;
+    } catch (err) {
+      console.error('Error creating category:', err);
+      throw err;
+    }
+  }, [refreshCategories]);
+
   // Filtrar categorías por tipo
   const expenseCategories = categories.filter(cat => cat.type === 'expense');
   const incomeCategories = categories.filter(cat => cat.type === 'income');
@@ -80,6 +110,7 @@ export function CategoriesProvider({ children }: CategoriesProviderProps) {
     loading,
     error,
     refreshCategories,
+    createCategory,
   };
 
   return (
