@@ -71,13 +71,8 @@ export default function AddTransactionScreen() {
   const handleFlowCancel = useCallback(() => {
     if (!isMounted.current) return;
     setFlowVisible(false);
-    // Navigate back after a short delay to let the animation complete
-    setTimeout(() => {
-      if (isMounted.current) {
-        router.back();
-      }
-    }, 150);
-  }, [router]);
+    // Keep user on this screen to continue editing in detailed form
+  }, []);
 
   return (
     <View className="flex-1">

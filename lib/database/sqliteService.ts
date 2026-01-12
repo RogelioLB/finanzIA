@@ -8,12 +8,22 @@ export interface Wallet {
   currency: string;
   icon?: string;
   color?: string;
+  type: 'regular' | 'credit'; // 'regular' o 'credit'
+  // Campos para tarjetas de crédito (solo cuando type = 'credit')
+  bank?: string;
+  last_four_digits?: string;
+  credit_limit?: number;
+  cut_off_day?: number;
+  payment_due_day?: number;
+  interest_rate?: number;
   is_archived?: number;
   created_at?: number;
   updated_at?: number;
   sync_status?: string;
-  // Campo calculado (no almacenado en la base de datos)
+  // Campos calculados (no almacenados en la base de datos)
   net_balance?: number;
+  available_credit?: number; // credit_limit - balance (solo para type='credit')
+  utilization_percentage?: number; // (balance / credit_limit) * 100 (solo para type='credit')
 }
 
 export interface Category {
@@ -38,6 +48,7 @@ export interface Transaction {
   timestamp: number;
   category_id?: string;
   to_wallet_id?: string; // Para transferencias
+  objective_id?: string; // Para vincular transacciones con objetivos
   is_subscription: number;
   subscription_frequency?: string;
   next_payment_date?: number; // Fecha del próximo pago para suscripciones
@@ -132,14 +143,29 @@ interface CreateWalletParams {
   currency: string;
   icon: string;
   color: string;
+  type?: 'regular' | 'credit';
+  // Campos opcionales para tarjetas de crédito
+  bank?: string;
+  last_four_digits?: string;
+  credit_limit?: number;
+  cut_off_day?: number;
+  payment_due_day?: number;
+  interest_rate?: number;
 }
 
 interface UpdateWalletParams {
-  name: string;
+  name?: string;
   balance?: number; // Para permitir rebalanceo manual
-  currency: string;
-  icon: string;
-  color: string;
+  currency?: string;
+  icon?: string;
+  color?: string;
+  type?: 'regular' | 'credit';
+  bank?: string;
+  last_four_digits?: string;
+  credit_limit?: number;
+  cut_off_day?: number;
+  payment_due_day?: number;
+  interest_rate?: number;
   is_archived?: number;
 }
 
@@ -166,6 +192,7 @@ interface CreateTransactionParams {
   timestamp?: number;
   category_id?: string;
   to_wallet_id?: string;
+  objective_id?: string;
   is_subscription?: number;
   subscription_frequency?: string;
   next_payment_date?: number;
@@ -182,6 +209,7 @@ interface UpdateTransactionParams {
   timestamp?: number;
   category_id?: string;
   to_wallet_id?: string;
+  objective_id?: string;
   is_subscription?: number;
   subscription_frequency?: string;
   next_payment_date?: number;
@@ -257,6 +285,17 @@ export function useSQLiteService() {
   };
 
   /**
+   * Calcula campos de crédito para una wallet tipo 'credit'
+   */
+  const calculateCreditFields = (wallet: Wallet): Wallet => {
+    if (wallet.type === 'credit' && wallet.credit_limit) {
+      wallet.available_credit = wallet.credit_limit - wallet.balance;
+      wallet.utilization_percentage = (wallet.balance / wallet.credit_limit) * 100;
+    }
+    return wallet;
+  };
+
+  /**
    * Obtiene todas las billeteras con el balance neto calculado
    */
   const getWallets = async (): Promise<Wallet[]> => {
@@ -267,6 +306,7 @@ export function useSQLiteService() {
     // Calculamos el balance neto para cada wallet usando la función centralizada
     for (const wallet of wallets) {
       wallet.net_balance = await calculateWalletBalance(wallet.id, wallet.balance);
+      calculateCreditFields(wallet);
     }
 
     return wallets;
@@ -284,27 +324,69 @@ export function useSQLiteService() {
     if (wallet) {
       // Calculamos el balance neto usando la función centralizada
       wallet.net_balance = await calculateWalletBalance(wallet.id, wallet.balance);
+      calculateCreditFields(wallet);
     }
 
     return wallet;
   };
 
   /**
+   * Obtiene solo las wallets de tipo crédito
+   */
+  const getCreditWallets = async (): Promise<Wallet[]> => {
+    const wallets = await db.getAllAsync<Wallet>(
+      "SELECT * FROM wallets WHERE type = 'credit' AND is_archived = 0 ORDER BY name ASC"
+    );
+
+    for (const wallet of wallets) {
+      calculateCreditFields(wallet);
+    }
+
+    return wallets;
+  };
+
+  /**
    * Crea una nueva billetera con balance inicial
    * El balance establecido aquí es el principal que solo cambiará manualmente
+   * Para credit wallets, balance representa la deuda actual (amount owed)
    */
   const createWallet = async ({
     name,
     balance = 0,
-    currency = "USD",
+    currency = "MXN",
     icon = "🏦",
     color = "blue",
+    type = "regular",
+    bank,
+    last_four_digits,
+    credit_limit,
+    cut_off_day,
+    payment_due_day,
+    interest_rate,
   }: CreateWalletParams): Promise<string> => {
     const id = uuid.v4();
 
     await db.runAsync(
-      "INSERT INTO wallets (id, name, balance, currency, icon, color) VALUES (?, ?, ?, ?, ?, ?)",
-      [id, name, balance, currency, icon, color]
+      `INSERT INTO wallets (
+        id, name, balance, currency, icon, color, type,
+        bank, last_four_digits, credit_limit,
+        cut_off_day, payment_due_day, interest_rate
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        name,
+        balance,
+        currency,
+        icon,
+        color,
+        type,
+        bank || null,
+        last_four_digits || null,
+        credit_limit || null,
+        cut_off_day || null,
+        payment_due_day || null,
+        interest_rate || null,
+      ]
     );
 
     return id;
@@ -316,12 +398,24 @@ export function useSQLiteService() {
    */
   const updateWallet = async (
     id: string,
-    { name, balance, currency, icon, color, is_archived }: UpdateWalletParams
+    {
+      name,
+      balance,
+      currency,
+      icon,
+      color,
+      type,
+      bank,
+      last_four_digits,
+      credit_limit,
+      cut_off_day,
+      payment_due_day,
+      interest_rate,
+      is_archived,
+    }: UpdateWalletParams
   ): Promise<void> => {
     const result = await getWalletById(id);
     if (!result) return;
-
-    // Verificamos que exista la wallet antes de continuar
 
     let updateParts = [];
     const params: any[] = [];
@@ -350,6 +444,41 @@ export function useSQLiteService() {
     if (color !== undefined) {
       updateParts.push("color = ?");
       params.push(color);
+    }
+
+    if (type !== undefined) {
+      updateParts.push("type = ?");
+      params.push(type);
+    }
+
+    if (bank !== undefined) {
+      updateParts.push("bank = ?");
+      params.push(bank || null);
+    }
+
+    if (last_four_digits !== undefined) {
+      updateParts.push("last_four_digits = ?");
+      params.push(last_four_digits || null);
+    }
+
+    if (credit_limit !== undefined) {
+      updateParts.push("credit_limit = ?");
+      params.push(credit_limit || null);
+    }
+
+    if (cut_off_day !== undefined) {
+      updateParts.push("cut_off_day = ?");
+      params.push(cut_off_day || null);
+    }
+
+    if (payment_due_day !== undefined) {
+      updateParts.push("payment_due_day = ?");
+      params.push(payment_due_day || null);
+    }
+
+    if (interest_rate !== undefined) {
+      updateParts.push("interest_rate = ?");
+      params.push(interest_rate || null);
     }
 
     if (is_archived !== undefined) {
@@ -564,6 +693,7 @@ export function useSQLiteService() {
     timestamp = Date.now(),
     category_id,
     to_wallet_id,
+    objective_id,
     is_subscription = 0,
     subscription_frequency,
     next_payment_date,
@@ -575,7 +705,7 @@ export function useSQLiteService() {
     try {
       // Insertamos la transacción sin modificar el balance de la wallet
       await db.runAsync(
-        "INSERT INTO transactions (id, wallet_id, amount, type, title, note, timestamp, category_id, to_wallet_id, is_subscription, subscription_frequency, next_payment_date, end_date, is_excluded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO transactions (id, wallet_id, amount, type, title, note, timestamp, category_id, to_wallet_id, objective_id, is_subscription, subscription_frequency, next_payment_date, end_date, is_excluded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
           id,
           wallet_id,
@@ -586,6 +716,7 @@ export function useSQLiteService() {
           timestamp,
           category_id || null,
           to_wallet_id || null,
+          objective_id || null,
           is_subscription,
           subscription_frequency || null,
           next_payment_date || null,
@@ -624,6 +755,7 @@ export function useSQLiteService() {
       wallet_id = transaction.wallet_id,
       timestamp = transaction.timestamp,
       to_wallet_id = transaction.to_wallet_id,
+      objective_id = transaction.objective_id,
       is_subscription = transaction.is_subscription,
       subscription_frequency = transaction.subscription_frequency,
       end_date = transaction.end_date,
@@ -633,7 +765,7 @@ export function useSQLiteService() {
 
     // Actualizar la transacción sin modificar los balances de las wallets
     await db.runAsync(
-      "UPDATE transactions SET amount = ?, type = ?, title = ?, note = ?, category_id = ?, wallet_id = ?, timestamp = ?, to_wallet_id = ?, is_subscription = ?, subscription_frequency = ?, end_date = ?, next_payment_date = ?, is_excluded = ? WHERE id = ?",
+      "UPDATE transactions SET amount = ?, type = ?, title = ?, note = ?, category_id = ?, wallet_id = ?, timestamp = ?, to_wallet_id = ?, objective_id = ?, is_subscription = ?, subscription_frequency = ?, end_date = ?, next_payment_date = ?, is_excluded = ? WHERE id = ?",
       [
         amount,
         type,
@@ -643,6 +775,7 @@ export function useSQLiteService() {
         wallet_id || null,
         timestamp || null,
         to_wallet_id || null,
+        objective_id || null,
         is_subscription,
         subscription_frequency || null,
         end_date || null,
@@ -955,7 +1088,9 @@ export function useSQLiteService() {
     // Wallets
     getWallets,
     getWalletById,
+    getCreditWallets,
     calculateWalletBalance,
+    calculateCreditFields,
     createWallet,
     updateWallet,
     deleteWallet,

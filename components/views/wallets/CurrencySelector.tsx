@@ -10,16 +10,52 @@ export interface Currency {
 
 export const CURRENCIES: Currency[] = [
   {
+    code: "MXN",
+    symbol: "$",
+    name: "Peso Mexicano",
+    flag: "🇲🇽",
+  },
+  {
     code: "USD",
     symbol: "$",
-    name: "Dólar estadounidense",
+    name: "Dólar Estadounidense",
     flag: "🇺🇸",
   },
   {
-    code: "MXN",
+    code: "EUR",
+    symbol: "€",
+    name: "Euro",
+    flag: "🇪🇺",
+  },
+  {
+    code: "COP",
     symbol: "$",
-    name: "Peso mexicano",
-    flag: "🇲🇽",
+    name: "Peso Colombiano",
+    flag: "🇨🇴",
+  },
+  {
+    code: "ARS",
+    symbol: "$",
+    name: "Peso Argentino",
+    flag: "🇦🇷",
+  },
+  {
+    code: "CLP",
+    symbol: "$",
+    name: "Peso Chileno",
+    flag: "🇨🇱",
+  },
+  {
+    code: "PEN",
+    symbol: "S/",
+    name: "Sol Peruano",
+    flag: "🇵🇪",
+  },
+  {
+    code: "BRL",
+    symbol: "R$",
+    name: "Real Brasileño",
+    flag: "🇧🇷",
   },
 ];
 

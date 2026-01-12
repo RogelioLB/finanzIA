@@ -5,7 +5,7 @@ import uuid from "react-native-uuid";
  * Constante para la versión actual de la base de datos
  * Incrementar cuando se realicen cambios en el esquema
  */
-const DATABASE_VERSION = 12;
+const DATABASE_VERSION = 13;
 
 /**
  * Inicializa la estructura de la base de datos
@@ -52,9 +52,16 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         balance REAL NOT NULL DEFAULT 0,
-        currency TEXT NOT NULL DEFAULT 'USD',
+        currency TEXT NOT NULL DEFAULT 'MXN',
         icon TEXT,
         color TEXT,
+        type TEXT NOT NULL DEFAULT 'regular' CHECK(type IN ('regular', 'credit')),
+        bank TEXT,
+        last_four_digits TEXT,
+        credit_limit REAL DEFAULT 0,
+        cut_off_day INTEGER,
+        payment_due_day INTEGER,
+        interest_rate REAL DEFAULT 0,
         is_archived INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
         updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
@@ -89,6 +96,7 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
         category_id TEXT,
         to_wallet_id TEXT, -- Para transferencias entre wallets
+        objective_id TEXT, -- Para vincular transacciones con objetivos
         is_subscription INTEGER NOT NULL DEFAULT 0,
         subscription_frequency TEXT CHECK(subscription_frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
         next_payment_date INTEGER, -- Fecha del próximo pago para suscripciones
@@ -99,7 +107,8 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         sync_status TEXT NOT NULL DEFAULT 'local',
         FOREIGN KEY (wallet_id) REFERENCES wallets (id),
         FOREIGN KEY (category_id) REFERENCES categories (id),
-        FOREIGN KEY (to_wallet_id) REFERENCES wallets (id)
+        FOREIGN KEY (to_wallet_id) REFERENCES wallets (id),
+        FOREIGN KEY (objective_id) REFERENCES objectives (id)
       )
     `);
 
@@ -288,16 +297,57 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
     // Insertar categorías de ingresos
     for (const category of incomeCategories) {
       await db.execAsync(`
-        INSERT INTO categories (id, name, icon, color, is_custom, is_income) 
+        INSERT INTO categories (id, name, icon, color, is_custom, is_income)
         SELECT '${uuid.v4()}', '${category.name}', '${category.icon}', '${category.color}', 0, 1
         WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = '${category.name}' AND is_income = 1);
       `);
     }
 
+    // Migrar tarjetas de crédito existentes a wallets tipo 'credit' (v12 -> v13)
+    // Solo ejecutar si hay tarjetas de crédito que no han sido migradas
+    const creditCardCount = await db.getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) as count FROM credit_cards WHERE 1=1"
+    );
+
+    if (creditCardCount && creditCardCount.count > 0) {
+      // Migrar todas las tarjetas de crédito a wallets
+      await db.execAsync(`
+        INSERT INTO wallets (
+          id, name, balance, currency, icon, color, type,
+          bank, last_four_digits, credit_limit,
+          cut_off_day, payment_due_day, interest_rate,
+          is_archived, created_at, updated_at, sync_status
+        )
+        SELECT
+          id,
+          name,
+          current_balance as balance,
+          COALESCE((SELECT default_currency FROM user_settings WHERE id = 'main'), 'MXN') as currency,
+          COALESCE(icon, '💳') as icon,
+          COALESCE(color, '#FF6B6B') as color,
+          'credit' as type,
+          bank,
+          last_four_digits,
+          credit_limit,
+          cut_off_day,
+          payment_due_day,
+          interest_rate,
+          is_archived,
+          created_at,
+          updated_at,
+          sync_status
+        FROM credit_cards
+        WHERE NOT EXISTS (
+          SELECT 1 FROM wallets WHERE wallets.id = credit_cards.id
+        );
+      `);
+    }
+
     // Insertamos una wallet por defecto si la tabla está vacía
+    // Usar la divisa de user_settings (default_currency)
     await db.execAsync(`
-      INSERT INTO wallets (id, name, balance, currency, icon, color) 
-      SELECT '${uuid.v4()}', 'Bank', 0.0, 'USD', '🏦', '#4CAF50'
+      INSERT INTO wallets (id, name, balance, currency, icon, color)
+      SELECT '${uuid.v4()}', 'Bank', 0.0, COALESCE((SELECT default_currency FROM user_settings WHERE id = 'main'), 'MXN'), '🏦', '#4CAF50'
       WHERE NOT EXISTS (SELECT 1 FROM wallets WHERE name = 'Bank');
     `);
   });

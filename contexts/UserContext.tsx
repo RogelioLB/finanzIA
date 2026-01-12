@@ -123,6 +123,13 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           `UPDATE user_settings SET user_name = ?, default_currency = ?, onboarding_completed = 1, updated_at = ? WHERE id = 'main'`,
           [name, currency, Date.now()]
         );
+
+        // Update the default "Bank" wallet with the selected currency
+        await db.runAsync(
+          `UPDATE wallets SET currency = ?, updated_at = ? WHERE name = 'Bank'`,
+          [currency, Date.now()]
+        );
+
         await refreshSettings();
       } catch (error) {
         console.error("Error completing onboarding:", error);
