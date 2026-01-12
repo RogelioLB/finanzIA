@@ -160,13 +160,14 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
         // Buscar si ya existe una deuda para esta tarjeta
         let debtObjective = await getObjectiveByCreditWallet(selectedWallet.id);
 
-        // Obtener el wallet actualizado para obtener el balance actual
+        // Obtener el wallet actualizado para obtener el balance actual (net_balance incluye todas las transacciones)
         const updatedWallet = await getWalletById(selectedWallet.id);
         if (!updatedWallet) {
           throw new Error("Wallet not found");
         }
 
-        const debtAmount = updatedWallet.balance; // El balance de la tarjeta es la deuda
+        // Para wallets de crédito, net_balance = deuda owed (balance inicial + gastos - ingresos)
+        const debtAmount = updatedWallet.net_balance || updatedWallet.balance;
 
         if (debtObjective) {
           // Actualizar la deuda existente con el nuevo balance de la tarjeta

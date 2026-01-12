@@ -134,12 +134,13 @@ export default function TransferScreen() {
         const debtObjective = await getObjectiveByCreditWallet(toWallet.id);
 
         if (debtObjective) {
-          // Obtener el wallet actualizado para obtener el balance actual
+          // Obtener el wallet actualizado para obtener el balance actual (net_balance incluye todas las transacciones)
           const updatedWallet = await getWalletById(toWallet.id);
           if (updatedWallet) {
             // Actualizar la deuda con el nuevo balance de la tarjeta
+            // Para wallets de crédito, net_balance = deuda owed
             await updateObjective(debtObjective.id, {
-              current_amount: updatedWallet.balance,
+              current_amount: updatedWallet.net_balance || updatedWallet.balance,
             });
           }
         }

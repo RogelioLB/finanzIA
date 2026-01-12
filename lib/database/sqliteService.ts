@@ -264,8 +264,14 @@ export function useSQLiteService() {
   /**
    * Calcula el balance neto de una wallet específica
    * Excluye transacciones marcadas con is_excluded = 1 (suscripciones no pagadas)
+   * Para wallets de crédito: balance = deuda owed
+   *   - expense: suma al balance (aumenta deuda)
+   *   - income: resta al balance (paga deuda)
+   * Para wallets regulares: balance = dinero disponible
+   *   - income: suma al balance
+   *   - expense: resta al balance
    */
-  const calculateWalletBalance = async (walletId: string, initialBalance: number = 0): Promise<number> => {
+  const calculateWalletBalance = async (walletId: string, initialBalance: number = 0, walletType: 'regular' | 'credit' = 'regular'): Promise<number> => {
     // Obtenemos la suma de ingresos (excluyendo transacciones marcadas como excluidas)
     const incomeResult = await db.getFirstAsync<{ total: number }>(
       "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_id = ? AND type = 'income' AND is_excluded = 0",
@@ -280,8 +286,14 @@ export function useSQLiteService() {
     );
     const expense = expenseResult?.total || 0;
 
-    // Calculamos el balance neto: balance inicial + ingresos - gastos
-    return initialBalance + income - expense;
+    // Lógica diferente según el tipo de wallet
+    if (walletType === 'credit') {
+      // Para tarjetas de crédito: balance inicial + gastos (deuda) - ingresos (pagos)
+      return initialBalance + expense - income;
+    } else {
+      // Para wallets regulares: balance inicial + ingresos - gastos
+      return initialBalance + income - expense;
+    }
   };
 
   /**
@@ -305,7 +317,7 @@ export function useSQLiteService() {
 
     // Calculamos el balance neto para cada wallet usando la función centralizada
     for (const wallet of wallets) {
-      wallet.net_balance = await calculateWalletBalance(wallet.id, wallet.balance);
+      wallet.net_balance = await calculateWalletBalance(wallet.id, wallet.balance, wallet.type || 'regular');
       calculateCreditFields(wallet);
     }
 
@@ -323,7 +335,7 @@ export function useSQLiteService() {
 
     if (wallet) {
       // Calculamos el balance neto usando la función centralizada
-      wallet.net_balance = await calculateWalletBalance(wallet.id, wallet.balance);
+      wallet.net_balance = await calculateWalletBalance(wallet.id, wallet.balance, wallet.type || 'regular');
       calculateCreditFields(wallet);
     }
 
