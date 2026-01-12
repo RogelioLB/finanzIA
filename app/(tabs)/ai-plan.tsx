@@ -1,878 +1,345 @@
-import TransitionLayout from "@/components/ui/TransitionLayout";
-import { useObjectives } from "@/contexts/ObjectivesContext";
-import { useTransactions } from "@/contexts/TransactionsContext";
-import { useWallets } from "@/contexts/WalletsContext";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
-  ActivityIndicator,
-  ScrollView,
+  View,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  FlatList,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-
-interface FinancialPlan {
-  summary: string;
-  monthlyBudget: {
-    income: number;
-    expenses: number;
-    savings: number;
-    savingsPercentage: number;
-  };
-  recommendations: Array<{
-    category: string;
-    suggestion: string;
-    priority: "high" | "medium" | "low";
-    potentialSavings?: number;
-  }>;
-  spendingPatterns: Array<{
-    category: string;
-    percentage: number;
-    trend: "increasing" | "stable" | "decreasing";
-  }>;
-  goals: Array<{
-    title: string;
-    targetAmount: number;
-    monthsToAchieve: number;
-    monthlySavingsNeeded: number;
-  }>;
-  debtPayoffPlan?: {
-    totalDebt: number;
-    monthlyPaymentNeeded: number;
-    estimatedPayoffMonths: number;
-    strategy: "avalanche" | "snowball";
-    strategyExplanation: string;
-    debts: Array<{
-      name: string;
-      remainingAmount: number;
-      monthlyPayment: number;
-      payoffMonths: number;
-      priority: number;
-    }>;
-  };
-  actionItems: Array<{
-    action: string;
-    impact: "high" | "medium" | "low";
-    timeframe: string;
-  }>;
-}
+import NetInfo from "@react-native-community/netinfo";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
+import TransitionLayout from "@/components/ui/TransitionLayout";
+import ChatMessage from "@/components/chat/ChatMessage";
+import ChatInput from "@/components/chat/ChatInput";
+import TypingIndicator from "@/components/chat/TypingIndicator";
+import { useChatContext } from "@/contexts/ChatContext";
+import { useTransactions } from "@/contexts/TransactionsContext";
 
 export default function AiPlanScreen() {
-  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { messages, isLoading, sendMessage, clearHistory, error } = useChatContext();
   const { transactions } = useTransactions();
-  const { wallets } = useWallets();
-  const { objectives } = useObjectives();
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [plan, setPlan] = useState<FinancialPlan | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [inputText, setInputText] = useState("");
+  const [isConnected, setIsConnected] = useState<boolean | null>(true);
+  const flatListRef = useRef<FlatList>(null);
 
-  const hasEnoughData = transactions.length >= 10;
+  // Monitorear conexión a internet
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsConnected(state.isConnected);
+    });
 
-  const generatePlan = async () => {
-    if (!hasEnoughData) return;
+    return () => unsubscribe();
+  }, []);
 
-    setIsGenerating(true);
-    setError(null);
+  // Auto-scroll al final cuando hay nuevos mensajes
+  useEffect(() => {
+    if (messages.length > 0) {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }
+  }, [messages.length]);
+
+  const handleSend = async () => {
+    if (!inputText.trim() || isLoading || !isConnected) return;
+
+    const message = inputText.trim();
+    setInputText("");
 
     try {
-      // Preparar datos para la API (incluir TODAS las transacciones, incluso las excluidas)
-      const transactionSummary = transactions.map(t => ({
-        amount: t.amount,
-        type: t.type,
-        category: t.category_name || "Sin categoría",
-        title: t.title || "",
-        timestamp: t.timestamp,
-        is_subscription: t.is_subscription || 0,
-        is_excluded: t.is_excluded || 0,
-        subscription_frequency: t.subscription_frequency || null,
-        next_payment_date: t.next_payment_date || null,
-      }));
-
-      const totalBalance = wallets.reduce((sum, w) => sum + (w.net_balance || 0), 0);
-
-      // Preparar objetivos para la API
-      const objectivesSummary = objectives.map(o => ({
-        id: o.id,
-        title: o.title,
-        amount: o.amount,
-        current_amount: o.current_amount,
-        type: o.type,
-        due_date: o.due_date,
-      }));
-
-      const response = await fetch("/api/generate-plan", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          transactions: transactionSummary,
-          totalBalance,
-          transactionCount: transactions.length,
-          objectives: objectivesSummary,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Error al generar el plan");
-      }
-
-      const data = await response.json();
-      setPlan(data.plan);
+      await sendMessage(message);
     } catch (err) {
-      console.error("Error generating plan:", err);
-      setError("No se pudo generar el plan. Por favor, intenta de nuevo.");
-    } finally {
-      setIsGenerating(false);
+      console.error("[AiPlanScreen] Error sending message:", err);
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high":
-        return "#FF6B6B";
-      case "medium":
-        return "#FFA500";
-      case "low":
-        return "#4CAF50";
-      default:
-        return "#999";
-    }
-  };
-
-  const getPriorityLabel = (priority: string) => {
-    switch (priority) {
-      case "high":
-        return "Alta";
-      case "medium":
-        return "Media";
-      case "low":
-        return "Baja";
-      default:
-        return priority;
-    }
+  const handleClearHistory = () => {
+    Alert.alert(
+      "¿Limpiar historial?",
+      "Esto eliminará todos tus mensajes del chat. Esta acción no se puede deshacer.",
+      [
+        { text: "Cancelar", onPress: () => {}, style: "cancel" },
+        {
+          text: "Limpiar",
+          onPress: async () => {
+            await clearHistory();
+          },
+          style: "destructive",
+        },
+      ]
+    );
   };
 
   return (
-    <TransitionLayout>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerIcon}>
-            <Ionicons name="sparkles" size={32} color="#7952FC" />
-          </View>
-          <Text style={styles.title}>Plan Financiero IA</Text>
-          <Text style={styles.subtitle}>
-            Análisis inteligente de tus finanzas
-          </Text>
-        </View>
-
-        {/* Estado de datos */}
-        <View style={styles.dataStatusCard}>
-          <View style={styles.dataStatusHeader}>
-            <Ionicons
-              name={hasEnoughData ? "checkmark-circle" : "information-circle"}
-              size={24}
-              color={hasEnoughData ? "#4CAF50" : "#FFA500"}
-            />
-            <Text style={styles.dataStatusTitle}>
-              {hasEnoughData
-                ? "Datos suficientes"
-                : "Necesitas más transacciones"}
-            </Text>
-          </View>
-          <Text style={styles.dataStatusText}>
-            {transactions.length} de 10 transacciones mínimas
-          </Text>
-          {!hasEnoughData && (
-            <Text style={styles.dataStatusSubtext}>
-              Agrega {Math.max(0, 10 - transactions.length)} transacciones más para generar
-              tu plan personalizado
-            </Text>
-          )}
-        </View>
-
-        {/* Botón generar plan */}
-        {hasEnoughData && !plan && (
-          <Animated.View entering={FadeIn.delay(200)}>
-            <TouchableOpacity
-              style={[
-                styles.generateButton,
-                isGenerating && styles.generateButtonDisabled,
-              ]}
-              onPress={generatePlan}
-              disabled={isGenerating}
-            >
-              {isGenerating ? (
-                <>
-                  <ActivityIndicator color="#fff" size="small" />
-                  <Text style={styles.generateButtonText}>Generando...</Text>
-                </>
-              ) : (
-                <>
-                  <Ionicons name="sparkles" size={20} color="#fff" />
-                  <Text style={styles.generateButtonText}>
-                    Generar Plan con IA
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </Animated.View>
-        )}
-
-        {/* Error */}
-        {error && (
-          <Animated.View entering={FadeIn} style={styles.errorCard}>
-            <Ionicons name="alert-circle" size={24} color="#FF6B6B" />
-            <Text style={styles.errorText}>{error}</Text>
-          </Animated.View>
-        )}
-
-        {/* Plan generado */}
-        {plan && (
-          <Animated.View entering={FadeInDown.delay(300)}>
-            {/* Resumen */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📊 Resumen General</Text>
-              <View style={styles.card}>
-                <Text style={styles.summaryText}>{plan.summary}</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.keyboardAvoiding}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.bottom : 0}
+    >
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <View style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <View style={styles.headerIcon}>
+                <Ionicons name="chatbubbles" size={24} color="#7952FC" />
+              </View>
+              <View>
+                <Text style={styles.title}>Chat Financiero IA</Text>
+                <Text style={styles.subtitle}>Tu asistente personal</Text>
               </View>
             </View>
 
-            {/* Presupuesto mensual */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>💰 Presupuesto Mensual</Text>
-              <View style={styles.card}>
-                <View style={styles.budgetRow}>
-                  <Text style={styles.budgetLabel}>Ingresos</Text>
-                  <Text style={[styles.budgetValue, { color: "#4CAF50" }]}>
-                    ${plan.monthlyBudget.income.toLocaleString("es-MX")}
-                  </Text>
-                </View>
-                <View style={styles.budgetRow}>
-                  <Text style={styles.budgetLabel}>Gastos</Text>
-                  <Text style={[styles.budgetValue, { color: "#FF6B6B" }]}>
-                    ${plan.monthlyBudget.expenses.toLocaleString("es-MX")}
-                  </Text>
-                </View>
-                <View style={styles.budgetRow}>
-                  <Text style={styles.budgetLabel}>Ahorro</Text>
-                  <Text style={[styles.budgetValue, { color: "#7952FC" }]}>
-                    ${plan.monthlyBudget.savings.toLocaleString("es-MX")}
-                  </Text>
-                </View>
-                <View style={styles.savingsPercentage}>
-                  <Text style={styles.savingsPercentageText}>
-                    {plan.monthlyBudget.savingsPercentage}% de ahorro
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Recomendaciones */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>💡 Recomendaciones</Text>
-              {plan.recommendations.map((rec, index) => (
-                <Animated.View
-                  key={index}
-                  entering={FadeInDown.delay(400 + index * 100)}
-                  style={styles.card}
-                >
-                  <View style={styles.recommendationHeader}>
-                    <Text style={styles.recommendationCategory}>
-                      {rec.category}
-                    </Text>
-                    <View
-                      style={[
-                        styles.priorityBadge,
-                        { backgroundColor: getPriorityColor(rec.priority) },
-                      ]}
-                    >
-                      <Text style={styles.priorityText}>
-                        {getPriorityLabel(rec.priority)}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.recommendationText}>
-                    {rec.suggestion}
-                  </Text>
-                  {rec.potentialSavings && (
-                    <Text style={styles.potentialSavings}>
-                      <Text>Ahorro potencial: $</Text>
-                      <Text>{rec.potentialSavings.toLocaleString("es-MX")}</Text>
-                    </Text>
-                  )}
-                </Animated.View>
-              ))}
-            </View>
-
-            {/* Patrones de gasto */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📈 Patrones de Gasto</Text>
-              {plan.spendingPatterns.map((pattern, index) => (
-                <View key={index} style={styles.card}>
-                  <View style={styles.patternHeader}>
-                    <Text style={styles.patternCategory}>
-                      {pattern.category}
-                    </Text>
-                    <Text style={styles.patternPercentage}>
-                      {pattern.percentage}%
-                    </Text>
-                  </View>
-                  <View style={styles.progressBar}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        { width: `${pattern.percentage}%` },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.trendText}>
-                    <Text>Tendencia: </Text>
-                    <Text>
-                      {pattern.trend === "increasing"
-                        ? "📈 Aumentando"
-                        : pattern.trend === "decreasing"
-                        ? "📉 Disminuyendo"
-                        : "➡️ Estable"}
-                    </Text>
-                  </Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Metas sugeridas */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🎯 Metas Sugeridas</Text>
-              {plan.goals.map((goal, index) => (
-                <View key={index} style={styles.card}>
-                  <Text style={styles.goalTitle}>{goal.title}</Text>
-                  <View style={styles.goalDetails}>
-                    <View style={styles.goalRow}>
-                      <Text style={styles.goalLabel}>Meta:</Text>
-                      <Text style={styles.goalValue}>
-                        ${goal.targetAmount.toLocaleString("es-MX")}
-                      </Text>
-                    </View>
-                    <View style={styles.goalRow}>
-                      <Text style={styles.goalLabel}>Plazo:</Text>
-                      <Text style={styles.goalValue}>
-                        {goal.monthsToAchieve} meses
-                      </Text>
-                    </View>
-                    <View style={styles.goalRow}>
-                      <Text style={styles.goalLabel}>Ahorro mensual:</Text>
-                      <Text style={[styles.goalValue, { color: "#7952FC" }]}>
-                        ${goal.monthlySavingsNeeded.toLocaleString("es-MX")}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            {/* Plan de pago de deudas */}
-            {plan.debtPayoffPlan && plan.debtPayoffPlan.totalDebt > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>💳 Plan de Pago de Deudas</Text>
-                <View style={[styles.card, styles.debtSummaryCard]}>
-                  <View style={styles.debtSummaryRow}>
-                    <Text style={styles.debtSummaryLabel}>Deuda total:</Text>
-                    <Text style={[styles.debtSummaryValue, { color: "#FF6B6B" }]}>
-                      ${plan.debtPayoffPlan.totalDebt.toLocaleString("es-MX")}
-                    </Text>
-                  </View>
-                  <View style={styles.debtSummaryRow}>
-                    <Text style={styles.debtSummaryLabel}>Pago mensual:</Text>
-                    <Text style={[styles.debtSummaryValue, { color: "#7952FC" }]}>
-                      ${plan.debtPayoffPlan.monthlyPaymentNeeded.toLocaleString("es-MX")}
-                    </Text>
-                  </View>
-                  <View style={styles.debtSummaryRow}>
-                    <Text style={styles.debtSummaryLabel}>Tiempo estimado:</Text>
-                    <Text style={styles.debtSummaryValue}>
-                      {plan.debtPayoffPlan.estimatedPayoffMonths} meses
-                    </Text>
-                  </View>
-                  <View style={styles.strategyBadge}>
-                    <Ionicons
-                      name={plan.debtPayoffPlan.strategy === "avalanche" ? "trending-down" : "snow"}
-                      size={16}
-                      color="#7952FC"
-                    />
-                    <Text style={styles.strategyText}>
-                      Estrategia: {plan.debtPayoffPlan.strategy === "avalanche" ? "Avalancha" : "Bola de nieve"}
-                    </Text>
-                  </View>
-                  <Text style={styles.strategyExplanation}>
-                    {plan.debtPayoffPlan.strategyExplanation}
-                  </Text>
-                </View>
-
-                {plan.debtPayoffPlan.debts.map((debt, index) => (
-                  <View key={index} style={styles.card}>
-                    <View style={styles.debtHeader}>
-                      <View style={styles.debtPriorityBadge}>
-                        <Text style={styles.debtPriorityText}>#{debt.priority}</Text>
-                      </View>
-                      <Text style={styles.debtName}>{debt.name}</Text>
-                    </View>
-                    <View style={styles.debtDetails}>
-                      <View style={styles.goalRow}>
-                        <Text style={styles.goalLabel}>Restante:</Text>
-                        <Text style={[styles.goalValue, { color: "#FF6B6B" }]}>
-                          ${debt.remainingAmount.toLocaleString("es-MX")}
-                        </Text>
-                      </View>
-                      <View style={styles.goalRow}>
-                        <Text style={styles.goalLabel}>Pago mensual:</Text>
-                        <Text style={[styles.goalValue, { color: "#7952FC" }]}>
-                          ${debt.monthlyPayment.toLocaleString("es-MX")}
-                        </Text>
-                      </View>
-                      <View style={styles.goalRow}>
-                        <Text style={styles.goalLabel}>Liquidar en:</Text>
-                        <Text style={styles.goalValue}>
-                          {debt.payoffMonths} meses
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ))}
-              </View>
+            {messages.length > 0 && (
+              <TouchableOpacity
+                style={styles.clearButton}
+                onPress={handleClearHistory}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="trash-outline" size={20} color="#6B7280" />
+              </TouchableOpacity>
             )}
+          </View>
 
-            {/* Acciones a tomar */}
-            {plan.actionItems && plan.actionItems.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>✅ Acciones a Tomar</Text>
-                {plan.actionItems.map((item, index) => (
-                  <View key={index} style={styles.card}>
-                    <View style={styles.actionHeader}>
-                      <View
-                        style={[
-                          styles.impactBadge,
-                          { backgroundColor: getPriorityColor(item.impact) },
-                        ]}
-                      >
-                        <Ionicons
-                          name={
-                            item.impact === "high"
-                              ? "flash"
-                              : item.impact === "medium"
-                              ? "time"
-                              : "leaf"
-                          }
-                          size={12}
-                          color="#fff"
-                        />
-                      </View>
-                      <Text style={styles.actionTimeframe}>{item.timeframe}</Text>
-                    </View>
-                    <Text style={styles.actionText}>{item.action}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* Botón para gestionar objetivos */}
-            <TouchableOpacity
-              style={styles.objectivesButton}
-              onPress={() => router.push("/objectives")}
-            >
-              <Ionicons name="flag-outline" size={20} color="#7952FC" />
-              <Text style={styles.objectivesButtonText}>
-                Gestionar Metas y Deudas
+          {/* Messages */}
+          {messages.length === 0 && !isLoading ? (
+            <View style={styles.emptyStateContainer}>
+              <Ionicons name="chatbubble-ellipses" size={48} color="#DDD6FE" />
+              <Text style={styles.emptyStateTitle}>
+                Bienvenido al Chat Financiero
               </Text>
-            </TouchableOpacity>
+              <Text style={styles.emptyStateText}>
+                Soy tu asistente IA personal. Puedo ayudarte con:
+              </Text>
+              <View style={styles.featuresList}>
+                <View style={styles.featureItem}>
+                  <Ionicons name="checkmark-circle" size={16} color="#7952FC" />
+                  <Text style={styles.featureText}>Analizar tus gastos</Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <Ionicons name="checkmark-circle" size={16} color="#7952FC" />
+                  <Text style={styles.featureText}>
+                    Crear planes de pago
+                  </Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <Ionicons name="checkmark-circle" size={16} color="#7952FC" />
+                  <Text style={styles.featureText}>
+                    Responder preguntas específicas
+                  </Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <Ionicons name="checkmark-circle" size={16} color="#7952FC" />
+                  <Text style={styles.featureText}>
+                    Sugerir objetivos
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.startPrompt}>
+                ¿Cómo puedo ayudarte?
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              renderItem={({ item, index }) => (
+                <ChatMessage message={item} index={index} />
+              )}
+              keyExtractor={(item) => item.id}
+              onEndReachedThreshold={0.5}
+              ListFooterComponent={
+                isLoading ? <TypingIndicator /> : <View style={{ height: 16 }} />
+              }
+              scrollEnabled
+              scrollEventThrottle={16}
+            />
+          )}
 
-            {/* Botón regenerar */}
-            <TouchableOpacity
-              style={styles.regenerateButton}
-              onPress={generatePlan}
-              disabled={isGenerating}
-            >
-              <Ionicons name="refresh" size={20} color="#7952FC" />
-              <Text style={styles.regenerateButtonText}>Regenerar Plan</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        )}
+          {/* Error message */}
+          {error && (
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle" size={16} color="#DC2626" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </TransitionLayout>
+          {/* Offline indicator */}
+          {!isConnected && (
+            <View style={styles.offlineContainer}>
+              <Ionicons name="cloud-offline" size={16} color="#92400E" />
+              <Text style={styles.offlineText}>Estás desconectado. Revisa tu conexión a internet.</Text>
+            </View>
+          )}
+
+          {/* Input */}
+          <ChatInput
+            value={inputText}
+            onChangeText={setInputText}
+            onSend={handleSend}
+            isLoading={isLoading}
+            isDisabled={!isConnected}
+          />
+        </View>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoiding: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
   container: {
     flex: 1,
     backgroundColor: "#F8F9FA",
   },
   header: {
-    padding: 24,
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
   headerIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: "#F3F0FF",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
   },
   title: {
-    fontSize: 28,
+    fontSize: 16,
     fontWeight: "700",
     color: "#1F2937",
-    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    color: "#6B7280",
-  },
-  dataStatusCard: {
-    margin: 16,
-    padding: 20,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  dataStatusHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 8,
-  },
-  dataStatusTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  dataStatusText: {
-    fontSize: 16,
-    color: "#6B7280",
-    marginBottom: 4,
-  },
-  dataStatusSubtext: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#9CA3AF",
-    marginTop: 8,
+    marginTop: 2,
   },
-  generateButton: {
-    flexDirection: "row",
+  clearButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
-    margin: 16,
-    padding: 18,
-    backgroundColor: "#7952FC",
-    borderRadius: 16,
-    shadowColor: "#7952FC",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  generateButtonDisabled: {
-    opacity: 0.6,
+  emptyStateContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    paddingVertical: 40,
   },
-  generateButtonText: {
+  emptyStateTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#fff",
+    fontWeight: "700",
+    color: "#1F2937",
+    marginTop: 16,
+    textAlign: "center",
   },
-  errorCard: {
+  emptyStateText: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginTop: 8,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  featuresList: {
+    marginTop: 24,
+    width: "100%",
+    gap: 12,
+  },
+  featureItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    margin: 16,
-    padding: 16,
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#F3F0FF",
+    borderRadius: 8,
+  },
+  featureText: {
+    fontSize: 13,
+    color: "#6B40DC",
+    fontWeight: "500",
+  },
+  startPrompt: {
+    marginTop: 24,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#7952FC",
+  },
+  addTransactionButton: {
+    marginTop: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: "#7952FC",
+    borderRadius: 10,
+  },
+  addTransactionButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     backgroundColor: "#FEE2E2",
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: "#FF6B6B",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FECACA",
   },
   errorText: {
     flex: 1,
-    fontSize: 14,
-    color: "#991B1B",
+    fontSize: 13,
+    color: "#DC2626",
+    fontWeight: "500",
   },
-  section: {
-    marginTop: 24,
-    paddingHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginBottom: 12,
-  },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  summaryText: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: "#374151",
-  },
-  budgetRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  budgetLabel: {
-    fontSize: 16,
-    color: "#6B7280",
-  },
-  budgetValue: {
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  savingsPercentage: {
-    marginTop: 8,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-    alignItems: "center",
-  },
-  savingsPercentageText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#7952FC",
-  },
-  recommendationHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  recommendationCategory: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1F2937",
-    flex: 1,
-  },
-  priorityBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  priorityText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  recommendationText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#374151",
-    marginBottom: 8,
-  },
-  potentialSavings: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4CAF50",
-  },
-  patternHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  patternCategory: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  patternPercentage: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#7952FC",
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 4,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#7952FC",
-  },
-  trendText: {
-    fontSize: 14,
-    color: "#6B7280",
-  },
-  goalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 16,
-  },
-  goalDetails: {
-    gap: 12,
-  },
-  goalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  goalLabel: {
-    fontSize: 15,
-    color: "#6B7280",
-  },
-  goalValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  regenerateButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    margin: 16,
-    padding: 16,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#7952FC",
-  },
-  regenerateButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#7952FC",
-  },
-  debtSummaryCard: {
-    backgroundColor: "#FFF5F5",
-    borderWidth: 1,
-    borderColor: "#FED7D7",
-  },
-  debtSummaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  debtSummaryLabel: {
-    fontSize: 15,
-    color: "#6B7280",
-  },
-  debtSummaryValue: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  strategyBadge: {
+  offlineContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#F3F0FF",
+    marginHorizontal: 16,
+    marginBottom: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    backgroundColor: "#FEF3C7",
     borderRadius: 8,
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  strategyText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#7952FC",
-  },
-  strategyExplanation: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#374151",
-  },
-  debtHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 16,
-  },
-  debtPriorityBadge: {
-    backgroundColor: "#7952FC",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  debtPriorityText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  debtName: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#1F2937",
-    flex: 1,
-  },
-  debtDetails: {
-    gap: 8,
-  },
-  actionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
-  },
-  impactBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionTimeframe: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6B7280",
-    textTransform: "uppercase",
-  },
-  actionText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#374151",
-  },
-  objectivesButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    margin: 16,
-    marginBottom: 8,
-    padding: 16,
-    backgroundColor: "#F3F0FF",
-    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#DDD6FE",
+    borderColor: "#FDE68A",
   },
-  objectivesButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#7952FC",
+  offlineText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#92400E",
+    fontWeight: "500",
   },
 });

@@ -1,36 +1,131 @@
-import { openai } from '@ai-sdk/openai';
-import { generateObject } from 'ai';
-import { z } from 'zod';
 
-export async function POST(request: Request) {
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { openai } from "@ai-sdk/openai";
+import { streamText, generateObject } from "ai";
+import { z } from 'zod';
+import { buildFinancialContext } from './contextBuilder.js';
+
+dotenv.config();
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+// System prompt para la IA (Copiado del original)
+const getSystemPrompt = (financialContextSummary) => `Eres un asistente financiero personal amigable y experto. Ayudas a los usuarios a entender y mejorar sus finanzas personales de manera conversacional.
+
+CONTEXTO FINANCIERO ACTUAL DEL USUARIO:
+${financialContextSummary}
+
+TUS CAPACIDADES:
+1. Responder preguntas específicas sobre transacciones, gastos, ingresos y patrones de gasto
+2. Analizar la situación financiera del usuario con datos reales
+3. Generar visualizaciones útiles cuando sea necesario (gráficos, tablas, calendarios)
+4. Crear planes de pago personalizados para deudas y tarjetas de crédito
+5. Sugerir objetivos de ahorro alcanzables basados en el historial
+6. Dar recomendaciones prácticas y accionables
+7. Explicar conceptos financieros de manera simple
+8. Responder SIEMPRE en español (México)
+
+FORMATO DE RESPUESTA:
+- Sé conversacional, amigable y conciso
+- Usa DATOS ESPECÍFICOS del usuario (no genéricos)
+- Cuando sea útil para la comprensión, incluye visualizaciones usando estos marcadores especiales:
+
+  Para gráficos de pastel:
+  [CHART:PIE:{"title":"Título del gráfico","data":[{"value":5000,"label":"Etiqueta","color":"#FF6B6B"},{"value":3000,"label":"Otra etiqueta","color":"#4ECDC4"}]}]
+
+  Para gráficos de barras:
+  [CHART:BAR:{"title":"Título del gráfico","data":[{"value":5000,"label":"Enero","frontColor":"#7952FC"},{"value":4000,"label":"Febrero","frontColor":"#4ECDC4"}]}]
+
+  Para tablas:
+  [TABLE:{"headers":["Concepto","Fecha","Monto"],"rows":[["BBVA Tarjeta","15 Ene","$5,000"],["Netflix","5 Ene","$199"]]}]
+
+  Para acciones (guardar plan como objetivo):
+  [ACTION:SAVE_OBJECTIVE:{"title":"Pagar BBVA Oro","amount":15000,"type":"debt"}]
+
+INSTRUCCIONES IMPORTANTES:
+- Siempre usa datos REALES del usuario proporcionados en el contexto
+- No inventes números o información - si no tienes datos, pregunta al usuario
+- Cuando sugieras un plan (ej: plan de pagos), include un botón [ACTION:...] para que pueda guardarlo
+- Sé específico con fechas, montos y porcentajes
+- Mantén las respuestas enfocadas y accionables (máximo 3-4 párrafos)
+- Si el usuario pregunta sobre un aspecto que no tiene datos, sugiere qué información podría ayudarte
+- Para planes de pago, siempre considera el flujo de caja (ingresos vs gastos mensuales)
+- Prioriza las deudas de mayor interés en los planes de pago (estrategia Avalanche)
+
+Recuerda: El usuario depende de tu análisis para tomar decisiones financieras reales. Sé preciso, honesto y siempre basa tus recomendaciones en los datos proporcionados.`;
+
+app.get('/', (req, res) => {
+  res.send('FinanzIA Chat API is running');
+});
+
+app.post('/api/chat', async (req, res) => {
   try {
-    const body = await request.json();
-    const { transactions, totalBalance, transactionCount, objectives, creditCards } = body;
+    const { messages, financialContext } = req.body;
+
+    if (!financialContext || !financialContext.transactions) {
+      return res.status(400).json({ error: "Contexto financiero no proporcionado" });
+    }
+
+    // No hay mínimo, el asistente usará lo que tenga disponible.
+    // El contextBuilder se encarga de limitar a las más recientes.
+
+    // Construir contexto financiero
+    const financialContextSummary = buildFinancialContext(financialContext);
+
+    // Llamar a OpenAI con streaming
+    const result = streamText({
+      model: openai("gpt-4o-mini"),
+      system: getSystemPrompt(financialContextSummary),
+      messages: messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+      temperature: 0.7,
+    });
+
+    // Retornar respuesta streameada
+    result.pipeTextStreamToResponse(res);
+  } catch (error) {
+    console.error("[Chat API Error]", error);
+    res.status(500).json({ error: "Error procesando tu solicitud" });
+  }
+});
+
+app.post('/api/generate-plan', async (req, res) => {
+  try {
+    const { transactions, totalBalance, transactionCount, objectives, creditCards } = req.body;
 
     // No hay mínimo, generamos con lo que haya disponible.
 
     // Filtrar solo transacciones NO excluidas para cálculos de balance
-    const includedTransactions = transactions.filter((t: any) => t.is_excluded === 0);
+    const includedTransactions = transactions.filter((t) => t.is_excluded === 0);
 
     // Calcular estadísticas básicas (solo transacciones incluidas)
     const income = includedTransactions
-      .filter((t: any) => t.type === 'income')
-      .reduce((sum: number, t: any) => sum + t.amount, 0);
+      .filter((t) => t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0);
 
     const expenses = includedTransactions
-      .filter((t: any) => t.type === 'expense')
-      .reduce((sum: number, t: any) => sum + t.amount, 0);
+      .filter((t) => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0);
 
     // Agrupar por categoría con conteo
-    const categoryData: Record<string, { total: number; count: number; transactions: number[] }> = {};
-    transactions.forEach((t: any) => {
+    const categoryData = {};
+    transactions.forEach((t) => {
       if (t.type === 'expense') {
-        if (!categoryData[t.category]) {
-          categoryData[t.category] = { total: 0, count: 0, transactions: [] };
+        const category = t.category || t.category_name || 'Sin categoría';
+        if (!categoryData[category]) {
+          categoryData[category] = { total: 0, count: 0, transactions: [] };
         }
-        categoryData[t.category].total += t.amount;
-        categoryData[t.category].count += 1;
-        categoryData[t.category].transactions.push(t.amount);
+        categoryData[category].total += t.amount;
+        categoryData[category].count += 1;
+        categoryData[category].transactions.push(t.amount);
       }
     });
 
@@ -51,15 +146,14 @@ export async function POST(request: Request) {
     }).sort((a, b) => b.total - a.total);
 
     // Identificar suscripciones y deudas
-    // Deudas = suscripciones de pago único (sin subscription_frequency o con 'once')
-    const subscriptions = transactions.filter((t: any) =>
+    const subscriptions = transactions.filter((t) =>
       t.is_subscription === 1 && t.subscription_frequency && t.subscription_frequency !== 'once'
     );
-    const debts = transactions.filter((t: any) =>
+    const debts = transactions.filter((t) =>
       t.is_subscription === 1 && (!t.subscription_frequency || t.subscription_frequency === 'once')
     );
 
-    const subscriptionSummary = subscriptions.reduce((acc: any, t: any) => {
+    const subscriptionSummary = subscriptions.reduce((acc, t) => {
       const key = t.title || t.category;
       if (!acc[key]) {
         acc[key] = { amount: t.amount, frequency: t.subscription_frequency || 'mensual', count: 0 };
@@ -68,7 +162,7 @@ export async function POST(request: Request) {
       return acc;
     }, {});
 
-    const debtSummary = debts.reduce((acc: any, t: any) => {
+    const debtSummary = debts.reduce((acc, t) => {
       const key = t.title || t.category;
       if (!acc[key]) {
         acc[key] = { total: 0, count: 0, dueDate: t.next_payment_date };
@@ -81,12 +175,12 @@ export async function POST(request: Request) {
     // Crear lista simplificada de transacciones (solo últimas 50 para no saturar)
     const simplifiedTransactions = transactions
       .slice(0, 50)
-      .map((t: any) => {
+      .map((t) => {
         const isDebt = t.is_subscription === 1 && (!t.subscription_frequency || t.subscription_frequency === 'once');
         return {
           a: t.amount, // amount
           t: t.type === 'income' ? 'i' : 'e', // type (i=income, e=expense)
-          c: t.category || 'Sin categoría', // category
+          c: t.category || t.category_name || 'Sin categoría', // category
           ti: t.title || '', // title
           d: new Date(t.timestamp).toISOString().split('T')[0], // date (YYYY-MM-DD)
           s: t.is_subscription === 1 && !isDebt ? 'S' : '', // subscription (recurring)
@@ -97,13 +191,13 @@ export async function POST(request: Request) {
 
     // Procesar objetivos del usuario
     const userObjectives = objectives || [];
-    const savingsGoals = userObjectives.filter((o: any) => o.type === 'savings');
-    const userDebts = userObjectives.filter((o: any) => o.type === 'debt');
+    const savingsGoals = userObjectives.filter((o) => o.type === 'savings');
+    const userDebts = userObjectives.filter((o) => o.type === 'debt');
 
-    const totalDebtRemaining = userDebts.reduce((sum: number, d: any) =>
+    const totalDebtRemaining = userDebts.reduce((sum, d) =>
       sum + Math.max(0, d.amount - d.current_amount), 0);
-    const totalSaved = savingsGoals.reduce((sum: number, g: any) => sum + g.current_amount, 0);
-    const totalSavingsGoal = savingsGoals.reduce((sum: number, g: any) => sum + g.amount, 0);
+    const totalSaved = savingsGoals.reduce((sum, g) => sum + g.current_amount, 0);
+    const totalSavingsGoal = savingsGoals.reduce((sum, g) => sum + g.amount, 0);
 
     // Crear prompt contextual con toda la información
     const prompt = `Eres un asesor financiero experto. Analiza las siguientes transacciones y genera un plan financiero personalizado en español.
@@ -122,10 +216,10 @@ ${categoryStats.map(cat =>
 
 ${Object.keys(subscriptionSummary).length > 0 ? `
 SUSCRIPCIONES ACTIVAS (${subscriptions.length} total):
-${Object.entries(subscriptionSummary).map(([name, data]: [string, any]) =>
+${Object.entries(subscriptionSummary).map(([name, data]) =>
       `- ${name}: $${data.amount.toFixed(2)} ${data.frequency} (${data.count} pagos registrados)`
     ).join('\n')}
-Gasto mensual estimado en suscripciones: $${subscriptions.reduce((sum: number, s: any) => {
+Gasto mensual estimado en suscripciones: $${subscriptions.reduce((sum, s) => {
       const multiplier = s.subscription_frequency === 'weekly' ? 4 : s.subscription_frequency === 'yearly' ? 1 / 12 : 1;
       return sum + (s.amount * multiplier);
     }, 0).toFixed(2)} MXN
@@ -133,20 +227,20 @@ Gasto mensual estimado en suscripciones: $${subscriptions.reduce((sum: number, s
 
 ${Object.keys(debtSummary).length > 0 ? `
 DEUDAS/PAGOS ÚNICOS (${debts.length} total):
-${Object.entries(debtSummary).map(([name, data]: [string, any]) => {
+${Object.entries(debtSummary).map(([name, data]) => {
       const dueDate = data.dueDate ? new Date(data.dueDate).toISOString().split('T')[0] : 'Sin fecha';
       return `- ${name}: $${data.total.toFixed(2)} total (${data.count} pagos) - Vencimiento: ${dueDate}`;
     }).join('\n')}
-Total en deudas/pagos únicos: $${debts.reduce((sum: number, d: any) => sum + d.amount, 0).toFixed(2)} MXN
+Total en deudas/pagos únicos: $${debts.reduce((sum, d) => sum + d.amount, 0).toFixed(2)} MXN
 ` : ''}
 
 ${userObjectives.length > 0 ? `
 OBJETIVOS FINANCIEROS DEL USUARIO:
 
 ${savingsGoals.length > 0 ? `Metas de Ahorro (${savingsGoals.length}):
-${savingsGoals.map((g: any) => {
+${savingsGoals.map((g) => {
       const remaining = g.amount - g.current_amount;
-      const progress = (g.current_amount / g.amount * 100).toFixed(0);
+      const progress = (g.current_amount / (g.amount || 1) * 100).toFixed(0);
       const dueDate = g.due_date ? new Date(g.due_date).toISOString().split('T')[0] : 'Sin fecha';
       let monthlyNeeded = 0;
       if (g.due_date) {
@@ -160,9 +254,9 @@ Total ahorrado: $${totalSaved.toFixed(2)} de $${totalSavingsGoal.toFixed(2)}
 ` : ''}
 
 ${userDebts.length > 0 ? `Deudas Registradas (${userDebts.length}):
-${userDebts.map((d: any) => {
+${userDebts.map((d) => {
       const remaining = d.amount - d.current_amount;
-      const progress = (d.current_amount / d.amount * 100).toFixed(0);
+      const progress = (d.current_amount / (d.amount || 1) * 100).toFixed(0);
       const dueDate = d.due_date ? new Date(d.due_date).toISOString().split('T')[0] : 'Sin fecha';
       let monthlyNeeded = 0;
       if (d.due_date) {
@@ -178,7 +272,7 @@ Total deuda pendiente: $${totalDebtRemaining.toFixed(2)}
 
 ${creditCards && creditCards.length > 0 ? `
 TARJETAS DE CRÉDITO (${creditCards.length}):
-${creditCards.map((card: any) => {
+${creditCards.map((card) => {
       const utilization = card.credit_limit > 0 ? ((card.current_balance / card.credit_limit) * 100).toFixed(1) : 0;
       const available = card.credit_limit - card.current_balance;
       return `- ${card.name}${card.bank ? ` (${card.bank})` : ''}:
@@ -186,13 +280,13 @@ ${creditCards.map((card: any) => {
   Utilización: ${utilization}% | Tasa interés: ${card.interest_rate || 0}% anual
   Día corte: ${card.cut_off_day} | Día pago: ${card.payment_due_day}`;
     }).join('\n')}
-Total deuda en tarjetas: $${creditCards.reduce((sum: number, c: any) => sum + c.current_balance, 0).toLocaleString()}
-Total disponible: $${creditCards.reduce((sum: number, c: any) => sum + (c.credit_limit - c.current_balance), 0).toLocaleString()}
-Utilización promedio: ${creditCards.length > 0 ? (creditCards.reduce((sum: number, c: any) => sum + (c.credit_limit > 0 ? (c.current_balance / c.credit_limit) * 100 : 0), 0) / creditCards.length).toFixed(1) : 0}%
+Total deuda en tarjetas: $${creditCards.reduce((sum, c) => sum + c.current_balance, 0).toLocaleString()}
+Total disponible: $${creditCards.reduce((sum, c) => sum + (c.credit_limit - c.current_balance), 0).toLocaleString()}
+Utilización promedio: ${creditCards.length > 0 ? (creditCards.reduce((sum, c) => sum + (c.credit_limit > 0 ? (c.current_balance / c.credit_limit) * 100 : 0), 0) / creditCards.length).toFixed(1) : 0}%
 ` : ''}
 
 TRANSACCIONES RECIENTES (últimas ${simplifiedTransactions.length}):
-${simplifiedTransactions.map((t: any) => {
+${simplifiedTransactions.map((t) => {
       const flags = [t.s, t.dt, t.ex].filter(f => f).join(',');
       const title = t.ti ? ` - "${t.ti}"` : '';
       return `${t.d} | ${t.t === 'i' ? 'Ingreso' : 'Gasto'} | ${t.c}${title} | $${t.a.toFixed(2)}${flags ? ` [${flags}]` : ''}`;
@@ -235,103 +329,105 @@ Sé específico, práctico y motivador. Usa datos reales del usuario. Enfócate 
 
     // Definir schema con Zod
     const financialPlanSchema = z.object({
-      summary: z.string().describe('Resumen general de la situación financiera del usuario'),
+      summary: z.string(),
       monthlyBudget: z.object({
-        income: z.number().describe('Ingresos mensuales promedio'),
-        expenses: z.number().describe('Gastos mensuales promedio'),
-        savings: z.number().describe('Ahorro mensual'),
-        savingsPercentage: z.number().describe('Porcentaje de ahorro'),
+        income: z.number(),
+        expenses: z.number(),
+        savings: z.number(),
+        savingsPercentage: z.number(),
       }),
       recommendations: z.array(
         z.object({
-          category: z.string().describe('Categoría de la recomendación'),
-          suggestion: z.string().describe('Sugerencia específica'),
-          priority: z.enum(['high', 'medium', 'low']).describe('Prioridad de la recomendación'),
-          potentialSavings: z.number().optional().describe('Ahorro potencial en pesos'),
+          category: z.string(),
+          suggestion: z.string(),
+          priority: z.enum(['high', 'medium', 'low']),
+          potentialSavings: z.number().optional(),
         })
       ),
       spendingPatterns: z.array(
         z.object({
-          category: z.string().describe('Categoría de gasto'),
-          percentage: z.number().describe('Porcentaje del total'),
-          trend: z.enum(['increasing', 'stable', 'decreasing']).describe('Tendencia del gasto'),
+          category: z.string(),
+          percentage: z.number(),
+          trend: z.enum(['increasing', 'stable', 'decreasing']),
         })
       ),
       goals: z.array(
         z.object({
-          title: z.string().describe('Título de la meta'),
-          targetAmount: z.number().describe('Monto objetivo'),
-          monthsToAchieve: z.number().describe('Meses para alcanzar'),
-          monthlySavingsNeeded: z.number().describe('Ahorro mensual necesario'),
+          title: z.string(),
+          targetAmount: z.number(),
+          monthsToAchieve: z.number(),
+          monthlySavingsNeeded: z.number(),
         })
       ),
       debtPayoffPlan: z.object({
-        totalDebt: z.number().describe('Deuda total pendiente'),
-        monthlyPaymentNeeded: z.number().describe('Pago mensual necesario para todas las deudas'),
-        estimatedPayoffMonths: z.number().describe('Meses estimados para liquidar toda la deuda'),
-        strategy: z.enum(['avalanche', 'snowball']).describe('Estrategia recomendada: avalanche (mayor interés primero) o snowball (menor monto primero)'),
-        strategyExplanation: z.string().describe('Explicación de por qué se recomienda esta estrategia'),
+        totalDebt: z.number(),
+        monthlyPaymentNeeded: z.number(),
+        estimatedPayoffMonths: z.number(),
+        strategy: z.enum(['avalanche', 'snowball']),
+        strategyExplanation: z.string(),
         debts: z.array(
           z.object({
-            name: z.string().describe('Nombre de la deuda'),
-            remainingAmount: z.number().describe('Monto restante'),
-            monthlyPayment: z.number().describe('Pago mensual sugerido'),
-            payoffMonths: z.number().describe('Meses para liquidar'),
-            priority: z.number().describe('Orden de prioridad (1 = primera en pagar)'),
+            name: z.string(),
+            remainingAmount: z.number(),
+            monthlyPayment: z.number(),
+            payoffMonths: z.number(),
+            priority: z.number(),
           })
         ),
-      }).optional().describe('Plan de pago de deudas (solo si hay deudas del usuario)'),
+      }).optional(),
       actionItems: z.array(
         z.object({
-          action: z.string().describe('Acción específica a realizar'),
-          impact: z.enum(['high', 'medium', 'low']).describe('Impacto de la acción'),
-          timeframe: z.string().describe('Cuándo realizar la acción (esta semana, este mes, etc.)'),
+          action: z.string(),
+          impact: z.enum(['high', 'medium', 'low']),
+          timeframe: z.string(),
         })
-      ).describe('Acciones concretas que el usuario puede tomar de inmediato'),
+      ),
       paymentSchedule: z.array(
         z.object({
-          month: z.number().describe('Número del mes (1, 2, 3...)'),
+          month: z.number(),
           payments: z.array(
             z.object({
-              name: z.string().describe('Nombre de la deuda o tarjeta'),
-              amount: z.number().describe('Monto a pagar este mes'),
-              type: z.enum(['credit_card', 'debt', 'savings']).describe('Tipo de pago'),
-              isComplete: z.boolean().describe('Si este pago liquida la deuda'),
+              name: z.string(),
+              amount: z.number(),
+              type: z.enum(['credit_card', 'debt', 'savings']),
+              isComplete: z.boolean(),
             })
           ),
-          totalPayment: z.number().describe('Total a pagar este mes'),
-          remainingDebt: z.number().describe('Deuda restante después de este mes'),
+          totalPayment: z.number(),
+          remainingDebt: z.number(),
         })
-      ).optional().describe('Calendario de pagos mes por mes para los primeros 6 meses'),
+      ).optional(),
       creditCardStrategy: z.object({
-        totalCreditDebt: z.number().describe('Deuda total en tarjetas de crédito'),
-        averageUtilization: z.number().describe('Utilización promedio actual'),
-        targetUtilization: z.number().describe('Utilización objetivo (idealmente 30% o menos)'),
-        monthlyPaymentNeeded: z.number().describe('Pago mensual necesario para alcanzar objetivo'),
+        totalCreditDebt: z.number(),
+        averageUtilization: z.number(),
+        targetUtilization: z.number(),
+        monthlyPaymentNeeded: z.number(),
         priorityOrder: z.array(
           z.object({
             cardName: z.string(),
             currentBalance: z.number(),
             interestRate: z.number(),
             priority: z.number(),
-            reason: z.string().describe('Razón de esta prioridad'),
+            reason: z.string(),
           })
         ),
-      }).optional().describe('Estrategia específica para tarjetas de crédito'),
+      }).optional(),
     });
 
     const { object } = await generateObject({
-      model: openai('gpt-5-mini'),
+      model: openai("gpt-4o-mini"),
       schema: financialPlanSchema,
       prompt,
     });
 
-    return Response.json({ plan: object });
+    res.json({ plan: object });
   } catch (error) {
     console.error('Error generating plan:', error);
-    return Response.json(
-      { error: 'Error al generar el plan financiero' },
-      { status: 500 }
-    );
+    res.status(500).json({ error: 'Error al generar el plan financiero' });
   }
-}
+});
+
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
+});
+
