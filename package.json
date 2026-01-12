@@ -67,6 +67,9 @@
     "toastify-react-native": "^7.2.3",
     "zod": "^4.1.12"
   },
+  "optionalDependencies": {
+    "lightningcss-linux-x64-gnu": "^1.30.0"
+  },
   "devDependencies": {
     "@babel/core": "^7.28.5",
     "@types/react": "~19.0.14",
