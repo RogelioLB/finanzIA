@@ -169,8 +169,9 @@ export default function TransferScreen() {
     }
   };
 
-  // Mostrar mensaje si no hay wallets suficientes (solo cuentas regulares)
-  if (regularWallets.length < 2) {
+  // Mostrar mensaje si no hay wallets suficientes
+  // Se necesita al menos 1 cuenta regular (origen) y 1 wallet destino (puede ser regular o crédito)
+  if (regularWallets.length < 1 || wallets.length < 2) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -184,10 +185,10 @@ export default function TransferScreen() {
         <View style={styles.emptyContainer}>
           <Ionicons name="swap-horizontal-outline" size={64} color="#ccc" />
           <Text style={styles.emptyTitle}>
-            {regularWallets.length === 0 ? "No hay cuentas" : "Necesitas más cuentas"}
+            {regularWallets.length === 0 ? "No hay cuentas" : "Necesitas otra cuenta"}
           </Text>
           <Text style={styles.emptyText}>
-            Necesitas al menos 2 cuentas para realizar transferencias
+            Necesitas al menos una cuenta regular para transferir
           </Text>
           <TouchableOpacity
             style={styles.createButton}
