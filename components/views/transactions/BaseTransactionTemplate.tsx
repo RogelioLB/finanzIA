@@ -22,6 +22,7 @@ import Animated, {
 import AmountSheet from "./AmountSheet";
 import CategorySheet from "./CategorySheet";
 import DateTimePickerComponent from "./DateTimePicker";
+import ObjectiveSelector from "./ObjectiveSelector";
 
 interface BaseTransactionTemplateProps {
   mode: "add" | "edit";
@@ -49,6 +50,8 @@ interface BaseTransactionTemplateProps {
   timestamp?: number;
   setTimestamp?: (timestamp: number) => void;
   showDateTimePicker?: boolean;
+  objective_id?: string;
+  setObjectiveId?: (id?: string) => void;
 }
 
 export default function BaseTransactionTemplate({
@@ -77,6 +80,8 @@ export default function BaseTransactionTemplate({
   timestamp,
   setTimestamp,
   showDateTimePicker = true,
+  objective_id,
+  setObjectiveId,
 }: BaseTransactionTemplateProps) {
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState<"expense" | "income">(type);
@@ -341,6 +346,18 @@ export default function BaseTransactionTemplate({
             />
           )}
         </View>
+
+        {/* Objective Section */}
+        {setObjectiveId && (
+          <View className="bg-white p-4 border-t border-gray-100">
+            <Text className="text-gray-600 text-sm mb-3">Objetivo (Opcional)</Text>
+            <ObjectiveSelector
+              selectedObjectiveId={objective_id}
+              onSelect={setObjectiveId}
+              transactionType={type}
+            />
+          </View>
+        )}
 
         {/* Transaction Details */}
         <View className="bg-white p-4 border-t border-gray-100">

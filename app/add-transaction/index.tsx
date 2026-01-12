@@ -25,6 +25,8 @@ export default function AddTransactionScreen() {
     selectedWallet,
     setSelectedWallet,
     wallets,
+    objective_id,
+    setObjectiveId,
     isLoading: isLoadingWallets,
     isCreating,
     createTransaction,
@@ -100,6 +102,8 @@ export default function AddTransactionScreen() {
         timestamp={timestamp}
         setTimestamp={setTimestamp}
         showDateTimePicker={true}
+        objective_id={objective_id}
+        setObjectiveId={setObjectiveId}
       />
 
       {/* Transaction flow para entrada rápida inicial */}
