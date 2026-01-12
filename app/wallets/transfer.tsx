@@ -1,5 +1,6 @@
 import AnimatedAlert from "@/components/AnimatedAlert";
 import AmountBottomSheet from "@/components/views/wallets/AmountBottomSheet";
+import { useObjectives } from "@/contexts/ObjectivesContext";
 import { useTransactions } from "@/contexts/TransactionsContext";
 import { useWallets } from "@/contexts/WalletsContext";
 import { useSQLiteService, Wallet } from "@/lib/database/sqliteService";
@@ -26,7 +27,8 @@ export default function TransferScreen() {
   const router = useRouter();
   const { wallets, refreshWallets } = useWallets();
   const {refreshTransactions} = useTransactions()
-  const { createTransaction } = useSQLiteService();
+  const { refreshObjectives } = useObjectives();
+  const { createTransaction, getObjectiveByCreditWallet, updateObjective, getWalletById } = useSQLiteService();
 
   const [leftWallet, setLeftWallet] = useState<Wallet | null>(null);
   const [rightWallet, setRightWallet] = useState<Wallet | null>(null);
@@ -73,14 +75,16 @@ export default function TransferScreen() {
     });
   };
 
-  // Filtrar wallets disponibles (excluyendo tarjetas de crédito)
+  // Filtrar wallets disponibles
+  // Left (origen): solo cuentas regulares (no tarjetas de crédito)
   const regularWallets = wallets.filter(w => w.type !== 'credit');
 
   const availableLeftWallets = regularWallets.filter(
     (w) => w.id !== rightWallet?.id
   );
 
-  const availableRightWallets = regularWallets.filter((w) => w.id !== leftWallet?.id);
+  // Right (destino): todas las cuentas incluyendo tarjetas de crédito para poder pagar
+  const availableRightWallets = wallets.filter((w) => w.id !== leftWallet?.id);
 
   // Validar formulario
   const isFormValid = () => {
@@ -125,9 +129,26 @@ export default function TransferScreen() {
         to_wallet_id: fromWallet.id,
       });
 
+      // Si la transferencia es a una tarjeta de crédito, actualizar la deuda automáticamente
+      if (toWallet.type === "credit") {
+        const debtObjective = await getObjectiveByCreditWallet(toWallet.id);
+
+        if (debtObjective) {
+          // Obtener el wallet actualizado para obtener el balance actual
+          const updatedWallet = await getWalletById(toWallet.id);
+          if (updatedWallet) {
+            // Actualizar la deuda con el nuevo balance de la tarjeta
+            await updateObjective(debtObjective.id, {
+              current_amount: updatedWallet.balance,
+            });
+          }
+        }
+      }
+
       // Refrescar wallets
       await refreshWallets();
       await refreshTransactions();
+      await refreshObjectives();
 
       // Limpiar formulario
       setLeftWallet(null);
