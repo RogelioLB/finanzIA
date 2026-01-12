@@ -9,6 +9,9 @@ export default function AccountsWidget() {
   const { walletBalances, loading } = useBalance();
   const router = useRouter();
 
+  // Filtrar solo wallets regulares (excluir tarjetas de crédito)
+  const regularWallets = walletBalances.filter(w => w.type !== 'credit');
+
   if (loading) {
     return (
       <ScrollView
@@ -40,7 +43,7 @@ export default function AccountsWidget() {
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
     >
-      {walletBalances.map((wallet, index) => (
+      {regularWallets.map((wallet, index) => (
         <Animated.View
           key={wallet.id}
           entering={SlideInRight.delay(index * 100).duration(600)}
@@ -79,7 +82,7 @@ export default function AccountsWidget() {
       ))}
       
       <Animated.View
-        entering={FadeIn.delay(walletBalances.length * 100 + 200).duration(600)}
+        entering={FadeIn.delay(regularWallets.length * 100 + 200).duration(600)}
       >
         <TouchableOpacity 
           style={styles.addWallet}

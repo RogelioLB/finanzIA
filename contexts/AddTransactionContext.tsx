@@ -139,11 +139,6 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
           // Para objetivos de deuda: gastos aumentan el progreso
           else if (objective.type === "debt" && type === "expense") {
             progressDelta = parseFloat(amount);
-
-            // Si la deuda está vinculada a una tarjeta de crédito, también actualizar el balance de la tarjeta
-            if (objective.credit_wallet_id) {
-              await updateWalletBalance(objective.credit_wallet_id, -progressDelta);
-            }
           }
 
           // Actualizar el progreso del objetivo

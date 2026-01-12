@@ -8,6 +8,8 @@ interface WalletBalance {
   currency: string;
   icon?: string;
   color?: string;
+  type?: 'regular' | 'credit';
+  credit_limit?: number;
 }
 
 interface CurrencyBalance {
@@ -36,19 +38,23 @@ export default function useBalance() {
         return;
       }
       
-      // Crear balances individuales de wallets (excluyendo tarjetas de crédito)
+      // Crear balances individuales de wallets (incluyendo tarjetas de crédito)
       const individualWallets: WalletBalance[] = wallets
-        .filter(wallet => wallet.type !== 'credit')
         .map(wallet => {
         const currency = wallet.currency || 'USD';
         // Usar el net_balance en lugar del balance principal
-        const balance = Number(wallet.net_balance !== undefined ? wallet.net_balance : wallet.balance) || 0;
-        
+        let balance = Number(wallet.net_balance !== undefined ? wallet.net_balance : wallet.balance) || 0;
+
+        // Para tarjetas de crédito, mostrar el crédito disponible (no la deuda)
+        if (wallet.type === 'credit' && wallet.credit_limit) {
+          balance = wallet.credit_limit - balance;
+        }
+
         let locale = "en-US";
         if (currency === "MXN") {
           locale = "es-MX";
         }
-        
+
         try {
           const format = new Intl.NumberFormat(locale, {
             style: "currency",
@@ -62,6 +68,8 @@ export default function useBalance() {
             currency: currency,
             icon: wallet.icon,
             color: wallet.color,
+            type: wallet.type,
+            credit_limit: wallet.credit_limit,
           };
         } catch (formatError) {
           console.warn(`Error formatting currency ${currency}:`, formatError);
@@ -72,6 +80,8 @@ export default function useBalance() {
             currency: currency,
             icon: wallet.icon,
             color: wallet.color,
+            type: wallet.type,
+            credit_limit: wallet.credit_limit,
           };
         }
       });

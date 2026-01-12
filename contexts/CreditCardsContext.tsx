@@ -120,9 +120,11 @@ const getNextPaymentDate = (paymentDueDay: number | undefined): Date => {
 
 // Convertir Wallet (type='credit') a CreditCard
 const walletToCreditCard = (wallet: Wallet): CreditCard => {
-  const available_credit = Math.max(0, (wallet.credit_limit || 0) - wallet.balance);
+  // Usar net_balance (calculado desde transacciones) para obtener la deuda actual
+  const currentDebt = wallet.net_balance !== undefined ? wallet.net_balance : wallet.balance;
+  const available_credit = Math.max(0, (wallet.credit_limit || 0) - currentDebt);
   const utilization_percentage = (wallet.credit_limit || 0) > 0
-    ? (wallet.balance / (wallet.credit_limit || 1)) * 100
+    ? (currentDebt / (wallet.credit_limit || 1)) * 100
     : 0;
 
   const next_cut_off_date = getNextCutOffDate(wallet.cut_off_day);
@@ -139,7 +141,7 @@ const walletToCreditCard = (wallet: Wallet): CreditCard => {
     bank: wallet.bank || null,
     last_four_digits: wallet.last_four_digits || null,
     credit_limit: wallet.credit_limit || 0,
-    current_balance: wallet.balance,
+    current_balance: currentDebt,
     cut_off_day: wallet.cut_off_day || 1,
     payment_due_day: wallet.payment_due_day || 15,
     interest_rate: wallet.interest_rate || 0,
