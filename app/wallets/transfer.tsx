@@ -51,6 +51,16 @@ export default function TransferScreen() {
   // Animación para la flecha
   const arrowRotation = useSharedValue(0);
 
+  // Helper para obtener el balance a mostrar (disponible para tarjetas, balance para cuentas)
+  const getDisplayBalance = (wallet: Wallet) => {
+    if (wallet.type === 'credit' && wallet.credit_limit) {
+      // Para tarjetas: mostrar crédito disponible
+      return wallet.credit_limit - (wallet.net_balance || wallet.balance);
+    }
+    // Para cuentas regulares: mostrar balance actual
+    return wallet.net_balance || wallet.balance;
+  };
+
   const arrowAnimatedStyle = useAnimatedStyle(() => {
     return {
       transform: [{ rotate: `${arrowRotation.value}deg` }],
@@ -241,7 +251,7 @@ export default function TransferScreen() {
               </View>
               <Text style={styles.walletName}>{leftWallet.name}</Text>
               <Text style={styles.walletBalance}>
-                ${leftWallet.net_balance?.toFixed(2)}
+                ${getDisplayBalance(leftWallet).toFixed(2)}
               </Text>
             </>
           ) : (
@@ -284,7 +294,7 @@ export default function TransferScreen() {
               </View>
               <Text style={styles.walletName}>{rightWallet.name}</Text>
               <Text style={styles.walletBalance}>
-                ${rightWallet.net_balance?.toFixed(2)}
+                ${getDisplayBalance(rightWallet).toFixed(2)}
               </Text>
             </>
           ) : (
@@ -458,7 +468,7 @@ function WalletSelectionSheet({
               <View style={styles.sheetWalletInfo}>
                 <Text style={styles.sheetWalletName}>{wallet.name}</Text>
                 <Text style={styles.sheetWalletBalance}>
-                  ${wallet.net_balance?.toFixed(2)}
+                  ${getDisplayBalance(wallet).toFixed(2)}
                 </Text>
               </View>
               {selectedWallet?.id === wallet.id && (

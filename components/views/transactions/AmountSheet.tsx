@@ -63,6 +63,16 @@ export default function AmountSheet({
     }
   };
 
+  // Helper para obtener el balance a mostrar (disponible para tarjetas, balance para cuentas)
+  const getDisplayBalance = (wallet: Wallet) => {
+    if (wallet.type === 'credit' && wallet.credit_limit) {
+      // Para tarjetas: mostrar crédito disponible
+      return wallet.credit_limit - (wallet.net_balance || wallet.balance);
+    }
+    // Para cuentas regulares: mostrar balance actual
+    return wallet.net_balance || wallet.balance;
+  };
+
   // Renderizar cada item de wallet
   const renderWalletItem = ({ item }: { item: Wallet }) => {
     const isSelected = selectedWallet?.id === item.id;
@@ -80,7 +90,7 @@ export default function AmountSheet({
             {item.name}
           </Text>
           <Text style={styles.walletBalance}>
-            ${item.net_balance?.toFixed(2)}
+            ${getDisplayBalance(item).toFixed(2)}
           </Text>
         </View>
         {isSelected && (
