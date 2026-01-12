@@ -5,7 +5,7 @@ import uuid from "react-native-uuid";
  * Constante para la versión actual de la base de datos
  * Incrementar cuando se realicen cambios en el esquema
  */
-const DATABASE_VERSION = 13;
+const DATABASE_VERSION = 14;
 
 /**
  * Inicializa la estructura de la base de datos
@@ -148,11 +148,13 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         amount REAL NOT NULL,
         current_amount REAL NOT NULL DEFAULT 0,
         type TEXT NOT NULL CHECK(type IN ('savings', 'debt')),
+        credit_wallet_id TEXT,
         due_date INTEGER,
         is_archived INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
         updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
-        sync_status TEXT NOT NULL DEFAULT 'local'
+        sync_status TEXT NOT NULL DEFAULT 'local',
+        FOREIGN KEY (credit_wallet_id) REFERENCES wallets (id)
       )
     `);
 

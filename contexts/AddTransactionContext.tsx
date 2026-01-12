@@ -1,6 +1,7 @@
 import { Category } from "@/contexts/CategoriesContext";
 import { useSQLiteService, Wallet } from "@/lib/database/sqliteService";
 import React, { createContext, ReactNode, useContext, useState } from "react";
+import { useObjectives } from "./ObjectivesContext";
 import { useTransactions } from "./TransactionsContext";
 import { useWallets } from "./WalletsContext";
 
@@ -77,7 +78,8 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
   const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);
   const { wallets, isLoading, refreshWallets } = useWallets();
   const { refreshTransactions } = useTransactions();
-  const { createTransaction: createTransactionDB } = useSQLiteService();
+  const { createTransaction: createTransactionDB, updateWalletBalance, updateObjective, getObjectiveById } = useSQLiteService();
+  const { refreshObjectives } = useObjectives();
 
   const createTransaction = async (timestamp?: number): Promise<boolean> => {
     if (!selectedWallet || parseFloat(amount) <= 0) {
@@ -124,13 +126,43 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
         });
       }
 
-      // Crear la transacción usando el nuevo schem
+      // Si hay un objetivo vinculado, actualizar su progreso
+      if (objective_id) {
+        const objective = await getObjectiveById(objective_id);
+        if (objective) {
+          let progressDelta = 0;
+
+          // Para objetivos de ahorro: ingresos aumentan el progreso
+          if (objective.type === "savings" && type === "income") {
+            progressDelta = parseFloat(amount);
+          }
+          // Para objetivos de deuda: gastos aumentan el progreso
+          else if (objective.type === "debt" && type === "expense") {
+            progressDelta = parseFloat(amount);
+
+            // Si la deuda está vinculada a una tarjeta de crédito, también actualizar el balance de la tarjeta
+            if (objective.credit_wallet_id) {
+              await updateWalletBalance(objective.credit_wallet_id, -progressDelta);
+            }
+          }
+
+          // Actualizar el progreso del objetivo
+          if (progressDelta > 0) {
+            await updateObjective(objective_id, {
+              current_amount: objective.current_amount + progressDelta,
+            });
+          }
+        }
+      }
 
       // Refrescar las wallets para actualizar los balances
       await refreshWallets();
 
       // Refrescar las transacciones para mostrar la nueva
       await refreshTransactions();
+
+      // Refrescar los objetivos
+      await refreshObjectives();
 
       return true;
     } catch (error) {

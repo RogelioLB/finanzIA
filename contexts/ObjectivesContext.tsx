@@ -13,6 +13,7 @@ export interface Objective {
   amount: number;
   current_amount: number;
   type: "savings" | "debt";
+  credit_wallet_id?: string;
   due_date?: number;
   is_archived: number;
   created_at: number;
@@ -29,6 +30,7 @@ interface CreateObjectiveParams {
   amount: number;
   current_amount?: number;
   type: "savings" | "debt";
+  credit_wallet_id?: string;
   due_date?: number;
 }
 
@@ -37,6 +39,7 @@ interface UpdateObjectiveParams {
   amount?: number;
   current_amount?: number;
   type?: "savings" | "debt";
+  credit_wallet_id?: string;
   due_date?: number;
 }
 

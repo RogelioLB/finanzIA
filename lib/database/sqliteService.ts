@@ -510,6 +510,16 @@ export function useSQLiteService() {
     await db.runAsync("DELETE FROM wallets WHERE id = ?", [id]);
   };
 
+  /**
+   * Actualiza el balance de una wallet (para pagar deudas de tarjetas)
+   */
+  const updateWalletBalance = async (walletId: string, amount: number): Promise<void> => {
+    await db.runAsync(
+      "UPDATE wallets SET balance = balance + ?, updated_at = ? WHERE id = ?",
+      [amount, Date.now(), walletId]
+    );
+  };
+
   // ===== CATEGORIES =====
 
   /**
@@ -998,13 +1008,14 @@ export function useSQLiteService() {
     amount,
     current_amount = 0,
     type,
+    credit_wallet_id,
     due_date,
   }: CreateObjectiveParams): Promise<string> => {
     const id = uuid.v4();
 
     await db.runAsync(
-      "INSERT INTO objectives (id, title, amount, current_amount, type, due_date) VALUES (?, ?, ?, ?, ?, ?)",
-      [id, title, amount, current_amount, type, due_date || null]
+      "INSERT INTO objectives (id, title, amount, current_amount, type, credit_wallet_id, due_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [id, title, amount, current_amount, type, credit_wallet_id || null, due_date || null]
     );
 
     return id;
@@ -1028,12 +1039,13 @@ export function useSQLiteService() {
       amount = objective.amount,
       current_amount = objective.current_amount,
       type = objective.type,
+      credit_wallet_id = objective.credit_wallet_id,
       due_date = objective.due_date,
     } = updates;
 
     await db.runAsync(
-      "UPDATE objectives SET title = ?, amount = ?, current_amount = ?, type = ?, due_date = ? WHERE id = ?",
-      [title, amount, current_amount, type, due_date || null, id]
+      "UPDATE objectives SET title = ?, amount = ?, current_amount = ?, type = ?, credit_wallet_id = ?, due_date = ? WHERE id = ?",
+      [title, amount, current_amount, type, credit_wallet_id || null, due_date || null, id]
     );
   };
 
@@ -1094,6 +1106,7 @@ export function useSQLiteService() {
     createWallet,
     updateWallet,
     deleteWallet,
+    updateWalletBalance,
 
     // Categories
     getCategories,

@@ -1,0 +1,289 @@
+import { currencies, Currency } from "@/constants/currencies";
+import { useTransactions } from "@/contexts/TransactionsContext";
+import { useWallets } from "@/contexts/WalletsContext";
+import React, { useMemo } from "react";
+import { Dimensions, StyleSheet, Text, View } from "react-native";
+import { LineChart } from "react-native-gifted-charts";
+
+export default function WalletStatsWidget() {
+  const { wallets } = useWallets();
+  const { transactions } = useTransactions();
+
+  const getCurrencySymbol = (currency: string) => {
+    const currencyObj = currencies.find((c: Currency) => c.code === currency);
+    return currencyObj?.symbol || "$";
+  };
+
+  const balanceHistory = useMemo(() => {
+    // Filtrar solo wallets regulares (excluir tarjetas de crédito)
+    const regularWallets = wallets.filter(w => w.type !== 'credit');
+
+    if (regularWallets.length === 0) {
+      return [];
+    }
+
+    // Obtener todas las transacciones de wallets regulares
+    const walletIds = new Set(regularWallets.map(w => w.id));
+    const walletTransactions = transactions.filter(
+      t => walletIds.has(t.wallet_id) && t.is_excluded === 0
+    );
+
+    if (walletTransactions.length === 0) {
+      // Si no hay transacciones, mostrar solo el balance combinado actual
+      const currentBalance = regularWallets.reduce((sum, w) => sum + (w.net_balance || w.balance), 0);
+      return [
+        {
+          value: currentBalance,
+          dataPointText: "$" + currentBalance.toFixed(0),
+          label: "Actual",
+        },
+      ];
+    }
+
+    // Ordenar transacciones por fecha
+    const sortedTransactions = [...walletTransactions].sort(
+      (a, b) => a.timestamp - b.timestamp
+    );
+
+    // Calcular el balance inicial combinado
+    let transactionsEffect = 0;
+    sortedTransactions.forEach((transaction) => {
+      if (transaction.type === "income") {
+        transactionsEffect += transaction.amount;
+      } else if (transaction.type === "expense") {
+        transactionsEffect -= transaction.amount;
+      }
+    });
+
+    const currentCombinedBalance = regularWallets.reduce((sum, w) => sum + (w.net_balance || w.balance), 0);
+    const initialBalance = currentCombinedBalance - transactionsEffect;
+
+    // Función para formatear fecha
+    const formatDate = (timestamp: number) => {
+      const date = new Date(timestamp);
+      const day = date.getDate();
+      const monthNames = [
+        "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+        "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+      ];
+      const monthAbbr = monthNames[date.getMonth()];
+      return `${day} ${monthAbbr}`;
+    };
+
+    // Comenzar desde el balance inicial real
+    let runningBalance = initialBalance;
+
+    // Agregar punto inicial
+    const history = [
+      {
+        value: initialBalance,
+        dataPointText: "$" + initialBalance.toFixed(0),
+        label: "Inicio",
+      },
+    ];
+
+    // Procesar cada transacción cronológicamente
+    sortedTransactions.forEach((transaction) => {
+      if (transaction.type === "income") {
+        runningBalance += transaction.amount;
+      } else if (transaction.type === "expense") {
+        runningBalance -= transaction.amount;
+      }
+
+      history.push({
+        value: runningBalance,
+        dataPointText: "$" + runningBalance.toFixed(0),
+        label: formatDate(transaction.timestamp),
+      });
+    });
+
+    return history;
+  }, [wallets, transactions]);
+
+  // Calcular estadísticas combinadas
+  const stats = useMemo(() => {
+    const regularWallets = wallets.filter(w => w.type !== 'credit');
+    const walletIds = new Set(regularWallets.map(w => w.id));
+    const walletTransactions = transactions.filter(
+      t => walletIds.has(t.wallet_id) && t.is_excluded === 0
+    );
+
+    let totalIncome = 0;
+    let totalExpenses = 0;
+    let transactionCount = 0;
+
+    walletTransactions.forEach((t) => {
+      transactionCount++;
+      if (t.type === "income") {
+        totalIncome += t.amount;
+      } else if (t.type === "expense") {
+        totalExpenses += t.amount;
+      }
+    });
+
+    const currentBalance = regularWallets.reduce((sum, w) => sum + (w.net_balance || w.balance), 0);
+
+    return {
+      totalIncome,
+      totalExpenses,
+      currentBalance,
+      transactionCount,
+    };
+  }, [wallets, transactions]);
+
+  const screenWidth = Dimensions.get("window").width;
+  const chartWidth = screenWidth - 32;
+
+  // Si no hay wallets regulares, no mostrar nada
+  if (wallets.filter(w => w.type !== 'credit').length === 0) {
+    return null;
+  }
+
+  return (
+    <View>
+      {/* Gráfica de Balance Histórico Combinado */}
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Balance Total a través del tiempo</Text>
+        {balanceHistory.length > 1 ? (
+          <LineChart
+            isAnimated
+            data={balanceHistory}
+            width={chartWidth}
+            height={130}
+            color="#8B5CF6"
+            thickness={3}
+            dataPointsColor="#8B5CF6"
+            dataPointsRadius={4}
+            curved
+            hideYAxisText
+            hideRules
+            hideAxesAndRules={false}
+            xAxisColor="#E5E7EB"
+            xAxisLabelTextStyle={{ color: "#666", fontSize: 10 }}
+            maxValue={(() => {
+              const values = balanceHistory.map((item) => item.value);
+              const maxVal = Math.max(...values);
+              const minVal = Math.min(...values);
+
+              if (minVal >= 0) {
+                return Math.max(maxVal * 1.2, 100);
+              }
+
+              const absMax = Math.max(Math.abs(maxVal), Math.abs(minVal));
+              return absMax * 1.2;
+            })()}
+            mostNegativeValue={(() => {
+              const values = balanceHistory.map((item) => item.value);
+              const minVal = Math.min(...values);
+
+              if (minVal < 0) {
+                const maxVal = Math.max(...values);
+                const absMax = Math.max(Math.abs(maxVal), Math.abs(minVal));
+                return -absMax * 1.2;
+              }
+
+              return 0;
+            })()}
+            focusEnabled
+            showTextOnFocus
+            showStripOnFocus
+          />
+        ) : (
+          <View style={styles.noDataContainer}>
+            <Text style={styles.noDataText}>
+              No hay suficientes transacciones para mostrar la gráfica
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Estadísticas Resumidas */}
+      <View style={styles.statsContainer}>
+        <View style={styles.statCard}>
+          <Text style={styles.statLabel}>Balance Total</Text>
+          <Text style={[styles.statValue, { color: "#7952FC" }]}>
+            ${stats.currentBalance.toFixed(2)}
+          </Text>
+        </View>
+
+        <View style={styles.statCard}>
+          <Text style={styles.statLabel}>Ingresos</Text>
+          <Text style={[styles.statValue, { color: "#4CAF50" }]}>
+            +${stats.totalIncome.toFixed(2)}
+          </Text>
+        </View>
+
+        <View style={styles.statCard}>
+          <Text style={styles.statLabel}>Gastos</Text>
+          <Text style={[styles.statValue, { color: "#FF6B6B" }]}>
+            -${stats.totalExpenses.toFixed(2)}
+          </Text>
+        </View>
+
+        <View style={styles.statCard}>
+          <Text style={styles.statLabel}>Transacciones</Text>
+          <Text style={styles.statValue}>{stats.transactionCount}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  chartContainer: {
+    backgroundColor: "#FFFFFF",
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  chartTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  noDataContainer: {
+    height: 200,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  noDataText: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+  },
+  statsContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    gap: 8,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: "#f8f9fa",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  statLabel: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+});
