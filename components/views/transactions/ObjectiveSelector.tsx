@@ -1,7 +1,6 @@
 import React, { useMemo } from "react";
-import { ScrollView, TouchableOpacity, View, Text } from "react-native";
+import { ScrollView, TouchableOpacity, Text, StyleSheet } from "react-native";
 import { useObjectives } from "@/contexts/ObjectivesContext";
-import tw from "twrnc";
 
 interface ObjectiveSelectorProps {
   selectedObjectiveId?: string;
@@ -39,23 +38,24 @@ export default function ObjectiveSelector({
       horizontal
       showsHorizontalScrollIndicator={false}
       scrollEventThrottle={16}
-      style={tw`flex-1`}
-      contentContainerStyle={tw`gap-2`}
+      contentContainerStyle={styles.scrollContainer}
     >
       {/* Opción: Sin vincular objetivo */}
       <TouchableOpacity
         onPress={() => onSelect(undefined)}
         style={[
-          tw`px-4 py-3 rounded-lg border-2`,
+          styles.objectiveCard,
           !selectedObjectiveId
-            ? tw`bg-purple-100 border-purple-500`
-            : tw`bg-gray-100 border-gray-300`,
+            ? styles.objectiveCardSelected
+            : styles.objectiveCardUnselected,
         ]}
       >
         <Text
           style={[
-            tw`text-sm font-semibold`,
-            !selectedObjectiveId ? tw`text-purple-700` : tw`text-gray-600`,
+            styles.objectiveTitle,
+            !selectedObjectiveId
+              ? styles.objectiveTitleSelected
+              : styles.objectiveTitleUnselected,
           ]}
         >
           Ninguno
@@ -72,16 +72,18 @@ export default function ObjectiveSelector({
             key={objective.id}
             onPress={() => onSelect(objective.id)}
             style={[
-              tw`px-4 py-3 rounded-lg border-2`,
+              styles.objectiveCard,
               isSelected
-                ? tw`bg-purple-100 border-purple-500`
-                : tw`bg-gray-100 border-gray-300`,
+                ? styles.objectiveCardSelected
+                : styles.objectiveCardUnselected,
             ]}
           >
             <Text
               style={[
-                tw`text-sm font-semibold`,
-                isSelected ? tw`text-purple-700` : tw`text-gray-700`,
+                styles.objectiveTitle,
+                isSelected
+                  ? styles.objectiveTitleSelected
+                  : styles.objectiveTitleUnselected,
               ]}
               numberOfLines={1}
             >
@@ -89,8 +91,10 @@ export default function ObjectiveSelector({
             </Text>
             <Text
               style={[
-                tw`text-xs mt-1`,
-                isSelected ? tw`text-purple-600` : tw`text-gray-500`,
+                styles.objectiveProgress,
+                isSelected
+                  ? styles.objectiveProgressSelected
+                  : styles.objectiveProgressUnselected,
               ]}
             >
               {progress.toFixed(0)}% completado
@@ -101,3 +105,45 @@ export default function ObjectiveSelector({
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  scrollContainer: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  objectiveCard: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+    marginRight: 8,
+  },
+  objectiveCardSelected: {
+    backgroundColor: "#f3f0ff",
+    borderColor: "#7952FC",
+  },
+  objectiveCardUnselected: {
+    backgroundColor: "#f3f4f6",
+    borderColor: "#d1d5db",
+  },
+  objectiveTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  objectiveTitleSelected: {
+    color: "#6d28d9",
+  },
+  objectiveTitleUnselected: {
+    color: "#374151",
+  },
+  objectiveProgress: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  objectiveProgressSelected: {
+    color: "#7c3aed",
+  },
+  objectiveProgressUnselected: {
+    color: "#6b7280",
+  },
+});

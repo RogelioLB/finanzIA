@@ -36,8 +36,10 @@ export default function useBalance() {
         return;
       }
       
-      // Crear balances individuales de wallets
-      const individualWallets: WalletBalance[] = wallets.map(wallet => {
+      // Crear balances individuales de wallets (excluyendo tarjetas de crédito)
+      const individualWallets: WalletBalance[] = wallets
+        .filter(wallet => wallet.type !== 'credit')
+        .map(wallet => {
         const currency = wallet.currency || 'USD';
         // Usar el net_balance en lugar del balance principal
         const balance = Number(wallet.net_balance !== undefined ? wallet.net_balance : wallet.balance) || 0;
@@ -74,10 +76,10 @@ export default function useBalance() {
         }
       });
       
-      // Crear balances agrupados por moneda
+      // Crear balances agrupados por moneda (excluyendo tarjetas de crédito)
       const currencyBalances = new Map<string, { currency: string; balance: number; count: number }>();
-      
-      for (const wallet of wallets) {
+
+      for (const wallet of wallets.filter(w => w.type !== 'credit')) {
         const currency = wallet.currency || 'USD';
         // Usar el net_balance en lugar del balance principal
         const balance = Number(wallet.net_balance !== undefined ? wallet.net_balance : wallet.balance) || 0;

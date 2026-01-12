@@ -73,12 +73,14 @@ export default function TransferScreen() {
     });
   };
 
-  // Filtrar wallets disponibles
-  const availableLeftWallets = wallets.filter(
+  // Filtrar wallets disponibles (excluyendo tarjetas de crédito)
+  const regularWallets = wallets.filter(w => w.type !== 'credit');
+
+  const availableLeftWallets = regularWallets.filter(
     (w) => w.id !== rightWallet?.id
   );
 
-  const availableRightWallets = wallets.filter((w) => w.id !== leftWallet?.id);
+  const availableRightWallets = regularWallets.filter((w) => w.id !== leftWallet?.id);
 
   // Validar formulario
   const isFormValid = () => {
@@ -145,8 +147,8 @@ export default function TransferScreen() {
     }
   };
 
-  // Mostrar mensaje si no hay wallets suficientes
-  if (wallets.length < 2) {
+  // Mostrar mensaje si no hay wallets suficientes (solo cuentas regulares)
+  if (regularWallets.length < 2) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -160,7 +162,7 @@ export default function TransferScreen() {
         <View style={styles.emptyContainer}>
           <Ionicons name="swap-horizontal-outline" size={64} color="#ccc" />
           <Text style={styles.emptyTitle}>
-            {wallets.length === 0 ? "No hay cuentas" : "Necesitas más cuentas"}
+            {regularWallets.length === 0 ? "No hay cuentas" : "Necesitas más cuentas"}
           </Text>
           <Text style={styles.emptyText}>
             Necesitas al menos 2 cuentas para realizar transferencias
@@ -170,7 +172,7 @@ export default function TransferScreen() {
             onPress={() => router.push("/wallets/add-wallet")}
           >
             <Text style={styles.createButtonText}>
-              {wallets.length === 0 ? "Crear Cuenta" : "Crear Otra Cuenta"}
+              {regularWallets.length === 0 ? "Crear Cuenta" : "Crear Otra Cuenta"}
             </Text>
           </TouchableOpacity>
         </View>

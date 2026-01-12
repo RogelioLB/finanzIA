@@ -20,12 +20,15 @@ export default function WalletsScreen() {
   const router = useRouter();
   const { wallets, isLoading, deleteWallet } = useWallets();
 
+  // Filtrar solo wallets regulares (excluir tarjetas de crédito)
+  const regularWallets = wallets.filter(w => w.type !== 'credit');
+
   // Establecer wallet por defecto cuando se cargan las wallets
   useEffect(() => {
-    if (wallets.length > 0 && !defaultWalletId) {
-      setDefaultWalletId(wallets[0].id);
+    if (regularWallets.length > 0 && !defaultWalletId) {
+      setDefaultWalletId(regularWallets[0].id);
     }
-  }, [wallets, defaultWalletId]);
+  }, [regularWallets, defaultWalletId]);
 
   // Manejar eliminación de wallet
   const handleDeleteWallet = (wallet: Wallet) => {
@@ -83,7 +86,7 @@ export default function WalletsScreen() {
             <View style={styles.walletDetails}>
               <Text style={styles.walletName}>{item.name}</Text>
               <Text style={styles.walletBalance}>
-                ${item.balance.toFixed(2)}
+                ${(item.net_balance || item.balance).toFixed(2)}
               </Text>
             </View>
           </View>
@@ -153,7 +156,7 @@ export default function WalletsScreen() {
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Cargando cuentas...</Text>
           </View>
-        ) : wallets.length === 0 ? (
+        ) : regularWallets.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="wallet-outline" size={64} color="#ccc" />
             <Text style={styles.emptyTitle}>No tienes cuentas</Text>
@@ -169,7 +172,7 @@ export default function WalletsScreen() {
           </View>
         ) : (
           <FlatList
-            data={wallets}
+            data={regularWallets}
             renderItem={renderWalletItem}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContainer}
