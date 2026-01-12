@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { ScrollView, TouchableOpacity, View, Text } from "react-native";
-import { useObjectives } from "@/hooks/useObjectives";
+import { useObjectives } from "@/contexts/ObjectivesContext";
 import tw from "twrnc";
 
 interface ObjectiveSelectorProps {
