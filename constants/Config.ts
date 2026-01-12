@@ -1,7 +1,8 @@
 
 export const API_CONFIG = {
-  // Cambia esto por tu URL de Railway cuando lo despliegues
-  BASE_URL: "http://localhost:3000", 
+  // URL de Railway para producción
+  BASE_URL: "https://finanzia-production.up.railway.app", 
   CHAT_ENDPOINT: "/api/chat",
   GENERATE_PLAN_ENDPOINT: "/api/generate-plan",
 };
+
