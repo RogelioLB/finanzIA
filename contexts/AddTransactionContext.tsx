@@ -34,6 +34,8 @@ interface AddTransactionContextType {
   isCreating: boolean;
   createTransaction: (timestamp?: number) => Promise<boolean>;
   resetTransaction: () => void;
+  error: string | null;
+  clearError: () => void;
 }
 
 const defaultContextValue: AddTransactionContextType = {
@@ -56,6 +58,8 @@ const defaultContextValue: AddTransactionContextType = {
   isCreating: false,
   createTransaction: async () => false,
   resetTransaction: () => {},
+  error: null,
+  clearError: () => {},
 };
 
 const AddTransactionContext =
@@ -74,6 +78,7 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
   const [amount, setAmount] = useState<string>("0");
   const [objective_id, setObjectiveId] = useState<string | undefined>(undefined);
   const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);
   const { wallets, isLoading, refreshWallets } = useWallets();
@@ -85,12 +90,37 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
     if (!selectedWallet || parseFloat(amount) <= 0) {
       return false;
     }
-    
+
+    const amountNum = parseFloat(amount);
+
+    // Validar límites para gastos
+    if (type === "expense") {
+      // Para tarjetas de crédito: deben tener límite configurado
+      if (selectedWallet.type === "credit") {
+        if (!selectedWallet.credit_limit || selectedWallet.credit_limit <= 0) {
+          const errorMsg = "La tarjeta de crédito no tiene límite configurado";
+          setError(errorMsg);
+          console.error(errorMsg);
+          return false;
+        }
+      }
+      // Para cuentas regulares: deben tener saldo suficiente
+      else {
+        const availableBalance = selectedWallet.net_balance || selectedWallet.balance || 0;
+        if (availableBalance < amountNum) {
+          const errorMsg = `Saldo insuficiente. Disponible: $${availableBalance.toFixed(2)}, Necesario: $${amountNum.toFixed(2)}`;
+          setError(errorMsg);
+          console.error(errorMsg);
+          return false;
+        }
+      }
+    }
+
     const transactionTimestamp = timestamp || Date.now();
-    
+
     console.log({
       wallet_id: selectedWallet.id,
-      amount: parseFloat(amount),
+      amount: amountNum,
       type: type,
       title: title.trim(),
       note: note.trim() || undefined,
@@ -206,7 +236,12 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
     setType("expense");
     setAmount("0");
     setObjectiveId(undefined);
+    setError(null);
     // Mantener la wallet seleccionada para la próxima transacción
+  };
+
+  const clearError = () => {
+    setError(null);
   };
 
   return (
@@ -231,6 +266,8 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
         isCreating,
         createTransaction,
         resetTransaction,
+        error,
+        clearError,
       }}
     >
       {children}
