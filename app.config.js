@@ -60,6 +60,7 @@ export default {
           addGeneratedScheme: !!IS_DEV,
         },
       ],
+      'expo-updates',
       'expo-font',
       'expo-web-browser',
     ],
@@ -71,6 +72,12 @@ export default {
       eas: {
         projectId: 'c3ba621c-93c4-4ce1-957e-f8f503281f7a',
       },
+    },
+    updates: {
+      url: 'https://u.expo.dev/c3ba621c-93c4-4ce1-957e-f8f503281f7a',
+    },
+    runtimeVersion: {
+      policy: 'appVersion',
     },
   },
 };

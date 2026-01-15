@@ -78,6 +78,29 @@ Each wallet has its own currency. Balance aggregation groups by currency using `
 
 See `AI_PLAN_SETUP.md` for detailed setup instructions.
 
+## Auto-Deploy with EAS Update
+
+The app is configured for automatic over-the-air (OTA) updates when pushing to `master` or `main` branches.
+
+### How It Works
+- GitHub Actions workflow (`.github/workflows/eas-update.yml`) runs on push to main branches
+- Publishes updates to the `production` channel automatically
+- Installed apps receive updates on next restart
+
+### Setup Required
+1. Generate Expo access token at https://expo.dev/accounts/[username]/settings/access-tokens
+2. Add `EXPO_TOKEN` secret to GitHub repository settings
+3. Create initial production build: `eas build --platform all --profile production`
+
+### Update Channels
+- **production**: Auto-deployed from `master`/`main` (GitHub Actions)
+- **preview**: Manual updates for testing
+- **development**: Local development updates
+
+**Important**: Changes to native code, plugins, or `eas.json` require a new build with `eas build`. Only JS/React changes can be deployed via OTA updates.
+
+See `EAS_AUTO_DEPLOY.md` for complete setup instructions and troubleshooting.
+
 ## Key Conventions
 
 - **Timestamps**: Stored as milliseconds since epoch

@@ -44,6 +44,7 @@
     "expo-status-bar": "~2.2.3",
     "expo-symbols": "~0.4.5",
     "expo-system-ui": "~5.0.11",
+    "expo-updates": "^29.0.16",
     "expo-web-browser": "~14.2.0",
     "metro": "0.82.0",
     "metro-config": "0.82.0",
