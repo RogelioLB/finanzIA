@@ -139,20 +139,17 @@ export default function TransferScreen() {
         to_wallet_id: fromWallet.id,
       });
 
-      // Si la transferencia es a una tarjeta de crédito, actualizar la deuda automáticamente
+      // Si la transferencia es a una tarjeta de crédito, actualizar el progreso de pago automáticamente
       if (toWallet.type === "credit") {
         const debtObjective = await getObjectiveByCreditWallet(toWallet.id);
 
         if (debtObjective) {
-          // Obtener el wallet actualizado para obtener el balance actual (net_balance incluye todas las transacciones)
-          const updatedWallet = await getWalletById(toWallet.id);
-          if (updatedWallet) {
-            // Actualizar la deuda con el nuevo balance de la tarjeta
-            // Para wallets de crédito, net_balance = deuda owed
-            await updateObjective(debtObjective.id, {
-              current_amount: updatedWallet.net_balance || updatedWallet.balance,
-            });
-          }
+          // Sumar el monto pagado al progreso del objetivo
+          // amount = deuda máxima acumulada (NO cambia al pagar)
+          // current_amount = cuánto has pagado acumulado
+          await updateObjective(debtObjective.id, {
+            current_amount: debtObjective.current_amount + amountNum,
+          });
         }
       }
 

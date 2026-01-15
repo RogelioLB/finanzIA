@@ -166,10 +166,6 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
           if (objective.type === "savings" && type === "income") {
             progressDelta = parseFloat(amount);
           }
-          // Para objetivos de deuda: gastos aumentan el progreso
-          else if (objective.type === "debt" && type === "expense") {
-            progressDelta = parseFloat(amount);
-          }
 
           // Actualizar el progreso del objetivo
           if (progressDelta > 0) {
@@ -195,16 +191,22 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
         const debtAmount = updatedWallet.net_balance || updatedWallet.balance;
 
         if (debtObjective) {
-          // Actualizar la deuda existente con el nuevo balance de la tarjeta
-          await updateObjective(debtObjective.id, {
-            current_amount: debtAmount,
-          });
+          // Si ya existe objetivo de deuda, actualizar SOLO si la deuda aumentó
+          // amount = deuda máxima acumulada (nunca disminuye, solo aumenta)
+          // current_amount se mantiene (cuánto has pagado)
+          if (debtAmount > debtObjective.amount) {
+            await updateObjective(debtObjective.id, {
+              amount: debtAmount,
+            });
+          }
         } else if (debtAmount > 0) {
           // Crear una nueva deuda si no existe y hay balance en la tarjeta
+          // amount = deuda actual (lo que debes)
+          // current_amount = 0 (no has pagado nada aún)
           await createObjective({
             title: `Deuda: ${selectedWallet.name}`,
-            amount: selectedWallet.credit_limit || debtAmount,
-            current_amount: debtAmount,
+            amount: debtAmount,
+            current_amount: 0,
             type: "debt",
             credit_wallet_id: selectedWallet.id,
           });

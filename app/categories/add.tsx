@@ -86,6 +86,21 @@ export default function AddCategoryScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      {/* Sticky Header con Nombre e Icono */}
+      <View style={styles.stickyHeader}>
+        <View
+          style={[
+            styles.stickyIconContainer,
+            { backgroundColor: selectedColor },
+          ]}
+        >
+          <Text style={styles.stickyIcon}>{selectedIcon}</Text>
+        </View>
+        <Text style={styles.stickyName} numberOfLines={1}>
+          {name || "Nueva categoría"}
+        </Text>
+      </View>
+
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Nombre */}
         <View style={styles.section}>
@@ -102,10 +117,7 @@ export default function AddCategoryScreen() {
 
         {/* Icono */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Icono</Text>
-          <View style={styles.selectedIconContainer}>
-            <Text style={styles.selectedIcon}>{selectedIcon}</Text>
-          </View>
+          <Text style={styles.sectionLabel}>Selecciona Icono</Text>
           <View style={styles.iconGrid}>
             {CATEGORY_ICONS.map((icon, index) => (
               <TouchableOpacity
@@ -219,13 +231,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   section: {
-    marginVertical: 20,
+    marginVertical: 12,
   },
   sectionLabel: {
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   input: {
     borderWidth: 1,
@@ -253,7 +265,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconButton: {
-    width: "23%",
+    width: "22%",
     aspectRatio: 1,
     borderRadius: 12,
     backgroundColor: "#f0f0f0",
@@ -272,11 +284,11 @@ const styles = StyleSheet.create({
   colorGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
+    gap: 8,
   },
   colorButton: {
-    width: "18.5%",
-    aspectRatio: 1,
+    width: "18%",
+    height: 48,
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
@@ -306,7 +318,7 @@ const styles = StyleSheet.create({
   buttonGroup: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 20,
+    marginTop: 12,
   },
   button: {
     flex: 1,
@@ -333,5 +345,30 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  stickyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    gap: 12,
+  },
+  stickyIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  stickyIcon: {
+    fontSize: 32,
+  },
+  stickyName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    flex: 1,
   },
 });
