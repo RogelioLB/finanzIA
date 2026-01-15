@@ -90,9 +90,7 @@ The app is configured for automatic over-the-air (OTA) updates when pushing to `
 ### Setup Required
 1. Generate Expo access token at https://expo.dev/accounts/[username]/settings/access-tokens
 2. Add `EXPO_TOKEN` secret to GitHub repository settings
-3. Create initial build with production channel:
-   - For testing (no store upload): `eas build --platform android --profile production-internal`
-   - For store release: `eas build --platform all --profile production`
+3. Create initial production build: `eas build --platform all --profile production`
 
 ### Update Channels
 - **production**: Auto-deployed from `master`/`main` (GitHub Actions)

@@ -46,47 +46,24 @@ El workflow publicará automáticamente un update al canal `production`.
 
 ### Paso 3: Crear un Build Inicial
 
-Antes de poder publicar updates, necesitas crear al menos un build con el canal configurado.
-
-**IMPORTANTE**: Tienes dos opciones dependiendo de si quieres subir a las tiendas o solo probar:
-
-#### Opción A: Build para Pruebas (Sin subir a tiendas)
-Usa el perfil `production-internal` para crear un build que recibirá los updates del canal `production`, pero que NO está destinado a las tiendas:
+Antes de poder publicar updates, necesitas crear al menos un build con el canal configurado:
 
 ```bash
-# Solo Android (recomendado para empezar)
-eas build --platform android --profile production-internal
-
-# O iOS
-eas build --platform ios --profile production-internal
-```
-
-Este build:
-- Se puede instalar directamente en tus dispositivos
-- Recibirá los updates automáticos del canal `production`
-- NO requiere subir a Play Store o App Store
-
-#### Opción B: Build para Tiendas (Cuando estés listo)
-Usa el perfil `production` cuando quieras subir a las tiendas:
-
-```bash
+# Para producción
 eas build --platform android --profile production
 eas build --platform ios --profile production
+
+# O para ambas plataformas
+eas build --platform all --profile production
 ```
 
 **Importante**: Los builds deben estar instalados en los dispositivos para recibir los updates. Los updates solo funcionan con builds que tienen el mismo `runtimeVersion`.
 
 ### Paso 4: Instalar la App en Dispositivos de Prueba
 
-1. Ve a tu dashboard de Expo: https://expo.dev
-2. Navega a tu proyecto > Builds
-3. Descarga el build que acabas de crear:
-   - **Android**: Descarga el APK y compártelo a tu dispositivo (por email, Drive, etc.)
-   - **iOS**: Puedes usar TestFlight o instalación directa (requiere provisioning profile)
-4. Instala el APK/IPA en tu dispositivo
-5. Abre la app para verificar que funciona
-
-**Tip para Android**: Puedes escanear el QR code que aparece en el dashboard de Expo para descargar el APK directamente en tu dispositivo.
+1. Descarga el build desde tu dashboard de Expo (https://expo.dev)
+2. Instala el APK en Android o el build en iOS
+3. Abre la app para verificar que funciona
 
 ## Uso Diario
 
