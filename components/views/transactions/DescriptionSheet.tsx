@@ -1,5 +1,5 @@
 import { useAddTransaction } from "@/hooks/useAddTransaction";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Keyboard,
   Text,
@@ -20,17 +20,26 @@ export default function DescriptionSheet({
   onClose,
   visible,
 }: DescriptionSheetProps) {
-  // Usamos el estado compartido del contexto
-  const { title, setTitle } = useAddTransaction();
+  // Obtener setTitle del contexto para sincronizar al avanzar
+  const { title: contextTitle, setTitle } = useAddTransaction();
+
+  // Estado local para evitar re-renders del contexto mientras se escribe
+  const [localTitle, setLocalTitle] = useState(contextTitle);
+
+  // Sincronizar estado local cuando el contexto cambia (ej: reset)
+  useEffect(() => {
+    setLocalTitle(contextTitle);
+  }, [contextTitle]);
 
   const handleNext = () => {
-    // Procesar el siguiente paso
-    onNext(title);
+    // Cerrar el teclado ANTES de cambiar de paso
+    Keyboard.dismiss();
 
-    // Cerrar el teclado después de un breve delay
-    setTimeout(() => {
-      Keyboard.dismiss();
-    }, 50);
+    // Sincronizar con el contexto
+    setTitle(localTitle);
+
+    // Procesar el siguiente paso
+    onNext(localTitle);
   };
 
   return (
@@ -47,10 +56,12 @@ export default function DescriptionSheet({
           className="bg-primary/30 rounded-xl text-black p-4 mb-2 "
           placeholder="Descripción (opcional)"
           placeholderTextColor="black"
-          value={title}
-          onChangeText={setTitle}
+          value={localTitle}
+          onChangeText={setLocalTitle}
           returnKeyType="next"
           onSubmitEditing={handleNext}
+          autoFocus={false}
+          showSoftInputOnFocus={true}
         />
         <Text className="text-gray-400 text-xs">
           Por ejemplo: Compras del supermercado, Pago de servicios, etc.

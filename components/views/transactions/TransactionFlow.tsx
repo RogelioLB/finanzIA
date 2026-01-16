@@ -1,5 +1,5 @@
 import { useAddTransaction } from "@/hooks/useAddTransaction";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import AmountSheet from "./AmountSheet";
 import CategorySheet from "./CategorySheet";
 import DescriptionSheet from "./DescriptionSheet";
@@ -24,12 +24,15 @@ export default function TransactionFlow({
     "description"
   );
 
+  // Refs para almacenar valores del flujo sin causar re-renders
+  const titleRef = useRef<string>("");
+
   // Usar el contexto compartido para los datos
+  // NOTA: No desestructuramos title/note aquí para evitar re-renders
+  // innecesarios cuando el usuario escribe en el input
   const {
-    title,
     setTitle,
     note,
-    setNote,
     category,
     setCategory,
     type,
@@ -41,6 +44,7 @@ export default function TransactionFlow({
 
   // Handle description submission
   const handleDescriptionNext = (description: string) => {
+    titleRef.current = description;
     setTitle(description);
     setStep("category");
   };
@@ -59,7 +63,7 @@ export default function TransactionFlow({
   const handleAmountComplete = (amount: string) => {
     setAmount(amount);
     onComplete({
-      title,
+      title: titleRef.current,
       note,
       category,
       type,
