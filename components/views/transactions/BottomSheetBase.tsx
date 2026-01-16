@@ -106,7 +106,11 @@ export default function BottomSheetBase({
   }));
 
   // Gesture for the bottom sheet
+  // activeOffsetY: solo activar cuando el movimiento vertical supera 10px
+  // failOffsetX: fallar si el movimiento horizontal supera 20px (permite scroll horizontal)
   const gesture = Gesture.Pan()
+    .activeOffsetY([-10, 10])
+    .failOffsetX([-20, 20])
     .onStart(() => {
       "worklet";
       context.value = { y: translateY.value };
