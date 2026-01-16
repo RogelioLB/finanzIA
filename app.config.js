@@ -12,10 +12,10 @@ export default {
     newArchEnabled: true,
     ios: {
       supportsTablet: true,
-      bundleIdentifier: IS_DEV ? 'com.finanzia.dev' : 'com.finanzia',
+      bundleIdentifier: IS_DEV ? 'com.rogeliolb.finanzia.dev' : 'com.rogeliolb.finanzia',
     },
     android: {
-      package: IS_DEV ? 'com.finanzia.dev' : 'com.finanzia',
+      package: IS_DEV ? 'com.rogeliolb.finanzia.dev' : 'com.rogeliolb.finanzia',
       adaptiveIcon: {
         foregroundImage: './assets/images/adaptive-icon.png',
         backgroundColor: '#ffffff',
