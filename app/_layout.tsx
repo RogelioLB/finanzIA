@@ -22,6 +22,7 @@ import { WalletsProvider } from "@/contexts/WalletsContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { initDatabase } from "@/lib/database/initDatabase";
 import * as NavigationBar from "expo-navigation-bar";
+import * as Updates from "expo-updates";
 import { SQLiteProvider } from "expo-sqlite";
 import { useEffect } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
@@ -71,6 +72,25 @@ export default function RootLayout() {
       NavigationBar.setButtonStyleAsync("light");
       NavigationBar.setPositionAsync("absolute");
     }
+  }, []);
+
+  // Verificar y aplicar actualizaciones OTA
+  useEffect(() => {
+    async function checkForUpdates() {
+      if (__DEV__) return; // No verificar en desarrollo
+
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          await Updates.reloadAsync();
+        }
+      } catch (error) {
+        console.log("Error verificando actualizaciones:", error);
+      }
+    }
+
+    checkForUpdates();
   }, []);
 
   const [loaded] = useFonts({

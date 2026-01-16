@@ -38,8 +38,10 @@ export default function DescriptionSheet({
     // Sincronizar con el contexto
     setTitle(localTitle);
 
-    // Procesar el siguiente paso
-    onNext(localTitle);
+    // Esperar a que el teclado se cierre antes de avanzar
+    setTimeout(() => {
+      onNext(localTitle);
+    }, 100);
   };
 
   return (
