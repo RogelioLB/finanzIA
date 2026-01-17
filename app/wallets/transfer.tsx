@@ -9,6 +9,7 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   ScrollView,
   StyleSheet,
   Text,
@@ -182,7 +183,10 @@ export default function TransferScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={() => {
+            Keyboard.dismiss();
+            router.back();
+          }}>
             <Ionicons name="arrow-back" size={24} color="#000" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Transferir</Text>
@@ -214,7 +218,10 @@ export default function TransferScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => {
+          Keyboard.dismiss();
+          router.back();
+        }}>
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Transferir</Text>
@@ -224,7 +231,10 @@ export default function TransferScreen() {
       {/* Amount Section */}
       <TouchableOpacity
         style={styles.amountSection}
-        onPress={() => setShowAmountSheet(true)}
+        onPress={() => {
+          Keyboard.dismiss();
+          setShowAmountSheet(true);
+        }}
         activeOpacity={0.7}
       >
         <Text style={styles.amountLabel}>Monto</Text>
@@ -236,7 +246,10 @@ export default function TransferScreen() {
         {/* Left Wallet */}
         <TouchableOpacity
           style={styles.walletCard}
-          onPress={() => setShowLeftWalletSheet(true)}
+          onPress={() => {
+            Keyboard.dismiss();
+            setShowLeftWalletSheet(true);
+          }}
           activeOpacity={0.7}
         >
           {leftWallet ? (
@@ -279,7 +292,10 @@ export default function TransferScreen() {
         {/* Right Wallet */}
         <TouchableOpacity
           style={styles.walletCard}
-          onPress={() => setShowRightWalletSheet(true)}
+          onPress={() => {
+            Keyboard.dismiss();
+            setShowRightWalletSheet(true);
+          }}
           activeOpacity={0.7}
         >
           {rightWallet ? (
