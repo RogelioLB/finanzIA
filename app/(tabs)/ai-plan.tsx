@@ -74,12 +74,12 @@ export default function AiPlanScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.keyboardAvoiding}
-      keyboardVerticalOffset={Platform.OS === "ios" ? insets.bottom : 0}
-    >
-      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardAvoiding}
+        keyboardVerticalOffset={0}
+      >
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
@@ -184,8 +184,8 @@ export default function AiPlanScreen() {
             isDisabled={!isConnected}
           />
         </View>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
