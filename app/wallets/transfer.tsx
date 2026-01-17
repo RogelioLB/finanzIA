@@ -322,7 +322,11 @@ export default function TransferScreen() {
       </View>
 
       {/* Note Section */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.noteSection}>
           <Text style={styles.noteLabel}>Nota (opcional)</Text>
           <TextInput
