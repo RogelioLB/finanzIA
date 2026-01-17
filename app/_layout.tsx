@@ -143,7 +143,7 @@ export default function RootLayout() {
                                 <Stack.Screen
                                   name="accounts"
                                   options={{
-                                    title: "Accounts",
+                                    title: "Cuentas",
                                     headerShown: false,
                                     animation: "fade_from_bottom",
                                     animationDuration: 250,
@@ -159,7 +159,7 @@ export default function RootLayout() {
                                 <Stack.Screen
                                   name="subscriptions"
                                   options={{
-                                    title: "Subscriptions",
+                                    title: "Suscripciones",
                                     headerShown: false,
                                     animation: "fade_from_bottom",
                                     animationDuration: 250,
@@ -168,7 +168,7 @@ export default function RootLayout() {
                                 <Stack.Screen
                                   name="objectives"
                                   options={{
-                                    title: "Objectives",
+                                    title: "Objetivos",
                                     headerShown: false,
                                     animation: "fade_from_bottom",
                                     animationDuration: 250,
@@ -177,7 +177,7 @@ export default function RootLayout() {
                                 <Stack.Screen
                                   name="credit-cards"
                                   options={{
-                                    title: "Credit Cards",
+                                    title: "Tarjetas de Crédito",
                                     headerShown: false,
                                     animation: "fade_from_bottom",
                                     animationDuration: 250,
@@ -186,7 +186,7 @@ export default function RootLayout() {
                                 <Stack.Screen
                                   name="settings"
                                   options={{
-                                    title: "Settings",
+                                    title: "Configuración",
                                     headerShown: false,
                                     animation: "fade_from_bottom",
                                     animationDuration: 250,

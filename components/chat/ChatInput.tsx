@@ -4,8 +4,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -27,11 +25,7 @@ export default function ChatInput({
   const canSend = value.trim().length > 0 && !isLoading && !isDisabled;
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.keyboardAvoidingView}
-    >
-      <View style={styles.container}>
+    <View style={styles.container}>
         <View style={styles.inputWrapper}>
           <TextInput
             style={styles.input}
@@ -63,19 +57,16 @@ export default function ChatInput({
           />
         </TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardAvoidingView: {
-    width: "100%",
-  },
   container: {
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 12,
     paddingVertical: 12,
+    paddingBottom: 20,
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",

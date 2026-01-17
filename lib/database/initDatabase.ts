@@ -30,8 +30,11 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
 
   // Crear tablas en una transacción para garantizar la consistencia
   await db.withTransactionAsync(async () => {
-    // Si estamos actualizando desde una versión anterior, eliminamos las tablas existentes
-    if (currentVersion < DATABASE_VERSION) {
+    // NOTA: En producción, NO eliminamos las tablas existentes para preservar los datos del usuario.
+    // Las migraciones de esquema deben manejarse con ALTER TABLE si es necesario.
+    // Solo en desarrollo (__DEV__) y con versiones antiguas se permite recrear las tablas.
+    if (__DEV__ && currentVersion > 0 && currentVersion < DATABASE_VERSION) {
+      console.log("⚠️ Modo desarrollo: Recreando tablas desde versión", currentVersion);
       await db.execAsync("DROP TABLE IF EXISTS transaction_labels");
       await db.execAsync("DROP TABLE IF EXISTS labels");
       await db.execAsync("DROP TABLE IF EXISTS category_budget_limits");
@@ -44,6 +47,10 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       await db.execAsync("DROP TABLE IF EXISTS chat_messages");
       await db.execAsync("DROP TABLE IF EXISTS user_settings");
       await db.execAsync("DROP TABLE IF EXISTS widget_settings");
+    } else if (!__DEV__ && currentVersion > 0 && currentVersion < DATABASE_VERSION) {
+      console.log("📱 Producción: Actualizando esquema de base de datos de versión", currentVersion, "a", DATABASE_VERSION);
+      // Aquí se pueden agregar migraciones específicas con ALTER TABLE si es necesario
+      // Por ahora, las tablas se crean con CREATE TABLE IF NOT EXISTS más abajo
     }
 
     // Tabla de wallets (billeteras)
