@@ -13,6 +13,7 @@ interface ChatInputProps {
   onSend: () => void;
   isLoading?: boolean;
   isDisabled?: boolean;
+  paddingBottom?: number;
 }
 
 export default function ChatInput({
@@ -21,11 +22,12 @@ export default function ChatInput({
   onSend,
   isLoading = false,
   isDisabled = false,
+  paddingBottom = 20,
 }: ChatInputProps) {
   const canSend = value.trim().length > 0 && !isLoading && !isDisabled;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom }]}>
         <View style={styles.inputWrapper}>
           <TextInput
             style={styles.input}
@@ -65,8 +67,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 12,
-    paddingVertical: 12,
-    paddingBottom: 20,
+    paddingTop: 12,
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
