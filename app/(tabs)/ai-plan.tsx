@@ -19,9 +19,6 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import { useChatContext } from "@/contexts/ChatContext";
 import { useTransactions } from "@/contexts/TransactionsContext";
 
-// Altura del tab bar personalizado (py-4 = 32px + contenido ~24px)
-const TAB_BAR_HEIGHT = 56;
-
 export default function AiPlanScreen() {
   const insets = useSafeAreaInsets();
   const { messages, isLoading, sendMessage, clearHistory, error } = useChatContext();
@@ -29,12 +26,6 @@ export default function AiPlanScreen() {
   const [inputText, setInputText] = useState("");
   const [isConnected, setIsConnected] = useState<boolean | null>(true);
   const flatListRef = useRef<FlatList>(null);
-
-  // Offset para el KeyboardAvoidingView que considera el tab bar + safe area inferior
-  const keyboardOffset = Platform.OS === "ios" ? TAB_BAR_HEIGHT + insets.bottom : 0;
-
-  // Padding bottom para el input que evita el tab bar
-  const inputPaddingBottom = TAB_BAR_HEIGHT + insets.bottom;
 
   // Monitorear conexión a internet
   useEffect(() => {
@@ -87,7 +78,7 @@ export default function AiPlanScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoiding}
-        keyboardVerticalOffset={keyboardOffset}
+        keyboardVerticalOffset={0}
       >
         <View style={styles.container}>
           {/* Header */}
@@ -191,7 +182,6 @@ export default function AiPlanScreen() {
             onSend={handleSend}
             isLoading={isLoading}
             isDisabled={!isConnected}
-            paddingBottom={inputPaddingBottom}
           />
         </View>
       </KeyboardAvoidingView>
