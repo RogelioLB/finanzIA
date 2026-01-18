@@ -3,13 +3,38 @@ import { triggerMediumTap } from "@/hooks/useHaptics";
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { TabList, Tabs, TabSlot, TabTrigger } from "expo-router/ui";
-import { TouchableHighlight, View } from "react-native";
+import { TouchableHighlight, View, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useEffect, useState } from "react";
 
 // Defining the layout of the custom tab navigator
 export default function Layout() {
   const pathname = usePathname();
   const router = useRouter();
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      "keyboardDidShow",
+      () => {
+        setKeyboardVisible(true);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      "keyboardDidHide",
+      () => {
+        setKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
+
+  // Ocultar tab bar cuando el teclado está visible en ai-plan
+  const shouldHideTabBar = isKeyboardVisible && pathname === "/ai-plan";
 
   return (
     <Tabs>
@@ -28,37 +53,39 @@ export default function Layout() {
           </TouchableHighlight>
         )}
       </View>
-      <SafeAreaView edges={["bottom"]}>
-        <View
-          className={`flex-row justify-around items-center py-4 px-4 bg-[#7952FC] rounded-t-xl`}
-        >
-          <AnimatedTabButton
-            name="Inicio"
-            icon="home"
-            href="/"
-            isActive={pathname === "/"}
-          />
-          <AnimatedTabButton
-            name="Transacciones"
-            customIcon="cash-outline"
-            href="/history"
-            isActive={pathname === "/history" || pathname === "/history/index"}
-          />
-          <AnimatedTabButton
-            name="AI Plan"
-            icon="ai-plan"
-            href="/ai-plan"
-            isActive={pathname === "/ai-plan"}
-          />
-          <AnimatedTabButton
-            name="Más"
-            customIcon="ellipsis-horizontal"
-            href="/more"
-            isActive={pathname === "/more"}
-            id="more"
-          />
-        </View>
-      </SafeAreaView>
+      {!shouldHideTabBar && (
+        <SafeAreaView edges={["bottom"]}>
+          <View
+            className={`flex-row justify-around items-center py-4 px-4 bg-[#7952FC] rounded-t-xl`}
+          >
+            <AnimatedTabButton
+              name="Inicio"
+              icon="home"
+              href="/"
+              isActive={pathname === "/"}
+            />
+            <AnimatedTabButton
+              name="Transacciones"
+              customIcon="cash-outline"
+              href="/history"
+              isActive={pathname === "/history" || pathname === "/history/index"}
+            />
+            <AnimatedTabButton
+              name="AI Plan"
+              icon="ai-plan"
+              href="/ai-plan"
+              isActive={pathname === "/ai-plan"}
+            />
+            <AnimatedTabButton
+              name="Más"
+              customIcon="ellipsis-horizontal"
+              href="/more"
+              isActive={pathname === "/more"}
+              id="more"
+            />
+          </View>
+        </SafeAreaView>
+      )}
 
       <TabList style={{ display: "none" }}>
         <TabTrigger name="inicio" href="/" />
