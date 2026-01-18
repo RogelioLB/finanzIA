@@ -15,11 +15,14 @@ import { AddTransactionProvider } from "@/contexts/AddTransactionContext";
 import { CategoriesProvider } from "@/contexts/CategoriesContext";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { CreditCardsProvider } from "@/contexts/CreditCardsContext";
+import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { ObjectivesProvider } from "@/contexts/ObjectivesContext";
+import { SubscriptionsProvider } from "@/contexts/SubscriptionsContext";
 import { TransactionsProvider } from "@/contexts/TransactionsContext";
 import { UserProvider, useUser } from "@/contexts/UserContext";
 import { WalletsProvider } from "@/contexts/WalletsContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { useSubscriptionMonitor } from "@/hooks/useSubscriptionMonitor";
 import { initDatabase } from "@/lib/database/initDatabase";
 import * as NavigationBar from "expo-navigation-bar";
 import * as Updates from "expo-updates";
@@ -66,6 +69,9 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
+  // Monitor de suscripciones para procesamiento automático
+  useSubscriptionMonitor();
+
   useEffect(() => {
     if (Platform.OS === "android") {
       NavigationBar.setBackgroundColorAsync("#7952FC");
@@ -109,10 +115,12 @@ export default function RootLayout() {
             <WalletsProvider>
               <CategoriesProvider>
                 <TransactionsProvider>
-                  <ObjectivesProvider>
-                    <CreditCardsProvider>
-                      <ChatProvider>
-                        <AddTransactionProvider>
+                  <SubscriptionsProvider>
+                    <NotificationsProvider>
+                      <ObjectivesProvider>
+                        <CreditCardsProvider>
+                          <ChatProvider>
+                            <AddTransactionProvider>
                         <ThemeProvider
                           value={colorScheme !== "dark" ? DarkTheme : DefaultTheme}
                         >
@@ -198,10 +206,12 @@ export default function RootLayout() {
                             <StatusBar style="dark" />
                           </GestureHandlerRootView>
                         </ThemeProvider>
-                      </AddTransactionProvider>
-                      </ChatProvider>
-                    </CreditCardsProvider>
-                  </ObjectivesProvider>
+                            </AddTransactionProvider>
+                          </ChatProvider>
+                        </CreditCardsProvider>
+                      </ObjectivesProvider>
+                    </NotificationsProvider>
+                  </SubscriptionsProvider>
                 </TransactionsProvider>
               </CategoriesProvider>
             </WalletsProvider>

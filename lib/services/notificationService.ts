@@ -195,48 +195,17 @@ export const cancelAllSubscriptionNotifications = async () => {
 /**
  * Reprograma una notificación para el siguiente pago
  * Se llama automáticamente cuando se recibe una notificación o el usuario interactúa con ella
+ * NOTA: Esta función está deprecada ya que ahora el procesamiento automático
+ * maneja la actualización de fechas. Se mantiene por compatibilidad.
  */
 export const rescheduleForNextPayment = async (
   subscriptionId: string
 ): Promise<boolean> => {
-  try {
-    // 1. Obtener la suscripción actual
-    const subscription = await getSubscriptionById(subscriptionId);
-    if (!subscription) {
-      console.error(`No se encontró la suscripción con ID: ${subscriptionId}`);
-      return false;
-    }
-
-    // 2. Comprobar si la notificación sigue habilitada
-    if (!subscription.allow_notifications) {
-      console.log(
-        `Las notificaciones están desactivadas para la suscripción: ${subscription.name}`
-      );
-      return false;
-    }
-
-    // 3. Calcular la siguiente fecha de pago
-    const nextPaymentDate = calculateNextPaymentDate(
-      subscription.frequency,
-      new Date(subscription.next_payment_date)
-    );
-
-    // 4. Actualizar la suscripción con la nueva fecha de pago
-    const updatedSubscription = await updateSubscription(subscriptionId, {
-      next_payment_date: nextPaymentDate,
-    });
-
-    // 5. Programar la nueva notificación
-    const notificationId =
-      await scheduleSubscriptionNotification(updatedSubscription);
-
-    console.log(
-      `Notificación reprogramada para ${new Date(nextPaymentDate).toLocaleDateString()} - Suscripción: ${subscription.name}`
-    );
-
-    return !!notificationId;
-  } catch (error) {
-    console.error("Error al reprogramar notificación:", error);
-    return false;
-  }
+  console.log(
+    `[rescheduleForNextPayment] Función deprecada llamada para ${subscriptionId}`
+  );
+  console.log(
+    "La actualización de fechas ahora se maneja automáticamente por el procesador de suscripciones"
+  );
+  return true;
 };
