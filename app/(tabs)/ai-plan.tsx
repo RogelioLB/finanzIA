@@ -33,6 +33,9 @@ export default function AiPlanScreen() {
   // Offset para el KeyboardAvoidingView que considera el tab bar + safe area inferior
   const keyboardOffset = Platform.OS === "ios" ? TAB_BAR_HEIGHT + insets.bottom : 0;
 
+  // Padding bottom para el input que evita el tab bar
+  const inputPaddingBottom = TAB_BAR_HEIGHT + insets.bottom;
+
   // Monitorear conexión a internet
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -188,6 +191,7 @@ export default function AiPlanScreen() {
             onSend={handleSend}
             isLoading={isLoading}
             isDisabled={!isConnected}
+            paddingBottom={inputPaddingBottom}
           />
         </View>
       </KeyboardAvoidingView>
