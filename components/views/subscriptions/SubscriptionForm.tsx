@@ -276,7 +276,11 @@ export default function SubscriptionForm({
         )}
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Type Selector */}
         <View style={styles.typeContainer}>
           <TouchableOpacity
@@ -330,6 +334,10 @@ export default function SubscriptionForm({
               value={title}
               onChangeText={setTitle}
               placeholderTextColor="#9CA3AF"
+              autoCorrect={false}
+              autoCapitalize="sentences"
+              blurOnSubmit={false}
+              returnKeyType="done"
             />
           </View>
         </View>
@@ -512,24 +520,27 @@ export default function SubscriptionForm({
       </View>
 
       {/* Amount Sheet */}
-      <AmountBottomSheet
-        visible={showAmountSheet}
-        amount={amount}
-        onAmountChange={setAmount}
-        onClose={() => setShowAmountSheet(false)}
-        onComplete={(newAmount) => {
-          setAmount(newAmount);
-          setShowAmountSheet(false);
-        }}
-      />
+      {showAmountSheet && (
+        <AmountBottomSheet
+          visible={showAmountSheet}
+          amount={amount}
+          onAmountChange={setAmount}
+          onClose={() => setShowAmountSheet(false)}
+          onComplete={(newAmount) => {
+            setAmount(newAmount);
+            setShowAmountSheet(false);
+          }}
+        />
+      )}
 
       {/* Category Sheet */}
-      <Modal
-        visible={showCategorySheet}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowCategorySheet(false)}
-      >
+      {showCategorySheet && (
+        <Modal
+          visible={showCategorySheet}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowCategorySheet(false)}
+        >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: "80%" }]}>
             <Text style={styles.modalTitle}>Seleccionar Categoría</Text>
@@ -567,59 +578,63 @@ export default function SubscriptionForm({
           </View>
         </View>
       </Modal>
+      )}
 
       {/* Wallet Sheet */}
-      <Modal
-        visible={showWalletSheet}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowWalletSheet(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: "80%" }]}>
-            <Text style={styles.modalTitle}>Seleccionar Cuenta</Text>
-            <ScrollView style={{ width: "100%" }}>
-              {wallets.map((wallet) => (
-                <TouchableOpacity
-                  key={wallet.id}
-                  style={styles.categoryItem}
-                  onPress={() => {
-                    setSelectedWallet(wallet.id);
-                    setShowWalletSheet(false);
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.walletIcon,
-                      { backgroundColor: wallet.color },
-                    ]}
+      {showWalletSheet && (
+        <Modal
+          visible={showWalletSheet}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowWalletSheet(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { maxHeight: "80%" }]}>
+              <Text style={styles.modalTitle}>Seleccionar Cuenta</Text>
+              <ScrollView style={{ width: "100%" }}>
+                {wallets.map((wallet) => (
+                  <TouchableOpacity
+                    key={wallet.id}
+                    style={styles.categoryItem}
+                    onPress={() => {
+                      setSelectedWallet(wallet.id);
+                      setShowWalletSheet(false);
+                    }}
                   >
-                    <Text style={styles.walletIconText}>{wallet.icon}</Text>
-                  </View>
-                  <Text style={styles.categoryItemText}>{wallet.name}</Text>
-                  {selectedWallet === wallet.id && (
-                    <Ionicons name="checkmark" size={24} color="#7952FC" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => setShowWalletSheet(false)}
-            >
-              <Text style={styles.modalCloseButtonText}>Cancelar</Text>
-            </TouchableOpacity>
+                    <View
+                      style={[
+                        styles.walletIcon,
+                        { backgroundColor: wallet.color },
+                      ]}
+                    >
+                      <Text style={styles.walletIconText}>{wallet.icon}</Text>
+                    </View>
+                    <Text style={styles.categoryItemText}>{wallet.name}</Text>
+                    {selectedWallet === wallet.id && (
+                      <Ionicons name="checkmark" size={24} color="#7952FC" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowWalletSheet(false)}
+              >
+                <Text style={styles.modalCloseButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
 
       {/* Frequency Sheet */}
-      <Modal
-        visible={showFrequencySheet}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowFrequencySheet(false)}
-      >
+      {showFrequencySheet && (
+        <Modal
+          visible={showFrequencySheet}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowFrequencySheet(false)}
+        >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Seleccionar Frecuencia</Text>
@@ -671,98 +686,103 @@ export default function SubscriptionForm({
           </View>
         </View>
       </Modal>
+      )}
 
       {/* Recurrence Sheet */}
-      <Modal
-        visible={showRecurrenceSheet}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowRecurrenceSheet(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Seleccionar Duración</Text>
-            <TouchableOpacity
-              style={styles.categoryItem}
-              onPress={() => {
-                setRecurrenceType("forever");
-                setShowRecurrenceSheet(false);
-              }}
-            >
-              <Ionicons name="infinite-outline" size={24} color="#7952FC" />
-              <Text style={styles.categoryItemText}>Para siempre</Text>
-              {recurrenceType === "forever" && (
-                <Ionicons name="checkmark" size={24} color="#7952FC" />
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.categoryItem}
-              onPress={() => {
-                setRecurrenceType("times");
-                setShowRecurrenceSheet(false);
-                setShowTimesSheet(true);
-              }}
-            >
-              <Ionicons name="repeat-outline" size={24} color="#7952FC" />
-              <Text style={styles.categoryItemText}>
-                {recurrenceType === "times"
-                  ? `${recurrenceTimes} ${recurrenceTimes === 1 ? "vez" : "veces"}`
-                  : "Número de veces"}
-              </Text>
-              {recurrenceType === "times" && (
-                <Ionicons name="checkmark" size={24} color="#7952FC" />
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => setShowRecurrenceSheet(false)}
-            >
-              <Text style={styles.modalCloseButtonText}>Cancelar</Text>
-            </TouchableOpacity>
+      {showRecurrenceSheet && (
+        <Modal
+          visible={showRecurrenceSheet}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowRecurrenceSheet(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Seleccionar Duración</Text>
+              <TouchableOpacity
+                style={styles.categoryItem}
+                onPress={() => {
+                  setRecurrenceType("forever");
+                  setShowRecurrenceSheet(false);
+                }}
+              >
+                <Ionicons name="infinite-outline" size={24} color="#7952FC" />
+                <Text style={styles.categoryItemText}>Para siempre</Text>
+                {recurrenceType === "forever" && (
+                  <Ionicons name="checkmark" size={24} color="#7952FC" />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.categoryItem}
+                onPress={() => {
+                  setRecurrenceType("times");
+                  setShowRecurrenceSheet(false);
+                  setShowTimesSheet(true);
+                }}
+              >
+                <Ionicons name="repeat-outline" size={24} color="#7952FC" />
+                <Text style={styles.categoryItemText}>
+                  {recurrenceType === "times"
+                    ? `${recurrenceTimes} ${recurrenceTimes === 1 ? "vez" : "veces"}`
+                    : "Número de veces"}
+                </Text>
+                {recurrenceType === "times" && (
+                  <Ionicons name="checkmark" size={24} color="#7952FC" />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowRecurrenceSheet(false)}
+              >
+                <Text style={styles.modalCloseButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
 
       {/* Times Sheet */}
-      <Modal
-        visible={showTimesSheet}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowTimesSheet(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: "60%" }]}>
-            <Text style={styles.modalTitle}>¿Cuántas veces?</Text>
-            <ScrollView style={{ width: "100%" }}>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 24, 30, 36].map(
-                (num) => (
-                  <TouchableOpacity
-                    key={num}
-                    style={styles.categoryItem}
-                    onPress={() => {
-                      setRecurrenceTimes(num);
-                      setShowTimesSheet(false);
-                    }}
-                  >
-                    <Text style={styles.categoryItemText}>
-                      {num} {num === 1 ? "vez" : "veces"}
-                    </Text>
-                    {recurrenceTimes === num && (
-                      <Ionicons name="checkmark" size={24} color="#7952FC" />
-                    )}
-                  </TouchableOpacity>
-                )
-              )}
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => setShowTimesSheet(false)}
-            >
-              <Text style={styles.modalCloseButtonText}>Cancelar</Text>
-            </TouchableOpacity>
+      {showTimesSheet && (
+        <Modal
+          visible={showTimesSheet}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowTimesSheet(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { maxHeight: "60%" }]}>
+              <Text style={styles.modalTitle}>¿Cuántas veces?</Text>
+              <ScrollView style={{ width: "100%" }}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 24, 30, 36].map(
+                  (num) => (
+                    <TouchableOpacity
+                      key={num}
+                      style={styles.categoryItem}
+                      onPress={() => {
+                        setRecurrenceTimes(num);
+                        setShowTimesSheet(false);
+                      }}
+                    >
+                      <Text style={styles.categoryItemText}>
+                        {num} {num === 1 ? "vez" : "veces"}
+                      </Text>
+                      {recurrenceTimes === num && (
+                        <Ionicons name="checkmark" size={24} color="#7952FC" />
+                      )}
+                    </TouchableOpacity>
+                  )
+                )}
+              </ScrollView>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowTimesSheet(false)}
+              >
+                <Text style={styles.modalCloseButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
 
       {/* Date Picker */}
       {showDatePicker && (

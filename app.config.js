@@ -20,6 +20,10 @@ export default {
         foregroundImage: './assets/images/adaptive-icon.png',
         backgroundColor: '#ffffff',
       },
+      notification: {
+        icon: './assets/images/adaptive-icon.png',
+        color: '#7952FC',
+      },
       edgeToEdgeEnabled: false,
     },
     web: {

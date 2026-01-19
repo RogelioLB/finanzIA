@@ -2,8 +2,10 @@ import { useSQLiteContext } from "expo-sqlite";
 import React, {
   createContext,
   ReactNode,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import { getAllSubscriptions } from "../lib/database/subscriptionService";
@@ -24,7 +26,7 @@ export const SubscriptionsProvider = ({ children }: { children: ReactNode }) => 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const refreshSubscriptions = async () => {
+  const refreshSubscriptions = useCallback(async () => {
     setIsLoading(true);
     try {
       const subs = await getAllSubscriptions(db);
@@ -35,17 +37,20 @@ export const SubscriptionsProvider = ({ children }: { children: ReactNode }) => 
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [db]);
 
   useEffect(() => {
     refreshSubscriptions();
-  }, []);
+  }, [refreshSubscriptions]);
 
-  const value: SubscriptionsContextType = {
-    subscriptions,
-    isLoading,
-    refreshSubscriptions,
-  };
+  const value = useMemo<SubscriptionsContextType>(
+    () => ({
+      subscriptions,
+      isLoading,
+      refreshSubscriptions,
+    }),
+    [subscriptions, isLoading, refreshSubscriptions]
+  );
 
   return (
     <SubscriptionsContext.Provider value={value}>

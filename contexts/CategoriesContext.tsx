@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useMemo, ReactNode } from 'react';
 import { useSQLiteService } from '@/lib/database/sqliteService';
 
 export interface Category {
@@ -99,9 +99,15 @@ export function CategoriesProvider({ children }: CategoriesProviderProps) {
     }
   }, [refreshCategories]);
 
-  // Filtrar categorías por tipo
-  const expenseCategories = categories.filter(cat => cat.type === 'expense');
-  const incomeCategories = categories.filter(cat => cat.type === 'income');
+  // Filtrar categorías por tipo (memoizado para evitar re-renders)
+  const expenseCategories = useMemo(
+    () => categories.filter(cat => cat.type === 'expense'),
+    [categories]
+  );
+  const incomeCategories = useMemo(
+    () => categories.filter(cat => cat.type === 'income'),
+    [categories]
+  );
 
   const value: CategoriesContextType = {
     categories,

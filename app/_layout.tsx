@@ -32,6 +32,15 @@ import { ActivityIndicator, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 /**
+ * Component that initializes subscription monitoring
+ * Must be used inside SQLiteProvider
+ */
+function SubscriptionMonitorInit() {
+  useSubscriptionMonitor();
+  return null;
+}
+
+/**
  * Navigation guard that handles onboarding redirect
  * Must be used inside UserProvider
  */
@@ -68,9 +77,6 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-
-  // Monitor de suscripciones para procesamiento automático
-  useSubscriptionMonitor();
 
   useEffect(() => {
     if (Platform.OS === "android") {
@@ -110,6 +116,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider style={{ backgroundColor: "#FAFAFA" }}>
       <SQLiteProvider databaseName="financeapp.db" onInit={initDatabase}>
+        <SubscriptionMonitorInit />
         <MenuProvider>
           <UserProvider>
             <WalletsProvider>

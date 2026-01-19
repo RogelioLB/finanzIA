@@ -19,7 +19,6 @@ import Animated, {
 } from "react-native-reanimated";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const CLOSE_THRESHOLD = SCREEN_HEIGHT * 0.5;
 
 interface BottomSheetBaseProps {
   children: ReactNode;
@@ -39,12 +38,17 @@ export default function BottomSheetBase({
   const overlayOpacity = useSharedValue(0);
   const context = useSharedValue({ y: 0 });
   const keyboard = useAnimatedKeyboard();
-  
-  // Guard to prevent multiple close calls
-  const isClosing = useRef(false);
+
+  // Guard to prevent multiple close calls (using shared value for UI thread access)
+  const isClosingShared = useSharedValue(false);
   const hasCalledOnClose = useRef(false);
 
-  // Define open and close functions first
+  // Function to set closing state (called from UI thread via runOnJS)
+  const setIsClosing = useCallback((value: boolean) => {
+    isClosingShared.value = value;
+  }, [isClosingShared]);
+
+  // Define open function
   const open = useCallback(() => {
     "worklet";
     cancelAnimation(translateY);
@@ -68,22 +72,22 @@ export default function BottomSheetBase({
     if (hasCalledOnClose.current) return;
     hasCalledOnClose.current = true;
     Keyboard.dismiss();
-    
+
     // Use setTimeout to ensure animation completes before calling onClose
     setTimeout(() => {
       if (onClose) {
         onClose();
       }
-    }, 100);
+    }, 150);
   }, [onClose]);
 
-  const close = useCallback(() => {
-    "worklet";
-    // Prevent multiple close calls from the UI thread
-    if (isClosing.current) return;
-    
-    runOnJS(() => { isClosing.current = true; })();
-    
+  // Close function (runs on JS thread, triggers worklet animation)
+  const closeFromJS = useCallback(() => {
+    // Prevent multiple close calls
+    if (isClosingShared.value || hasCalledOnClose.current) return;
+
+    isClosingShared.value = true;
+
     cancelAnimation(translateY);
     cancelAnimation(overlayOpacity);
 
@@ -96,9 +100,32 @@ export default function BottomSheetBase({
       easing: Easing.in(Easing.quad),
     });
 
-    // Call the safe wrapper after starting the animation
+    safeOnClose();
+  }, [translateY, overlayOpacity, safeOnClose, isClosingShared]);
+
+  // Worklet version of close for use in gesture handler
+  const closeWorklet = useCallback(() => {
+    "worklet";
+    // Check shared value (accessible from UI thread)
+    if (isClosingShared.value) return;
+
+    isClosingShared.value = true;
+
+    cancelAnimation(translateY);
+    cancelAnimation(overlayOpacity);
+
+    translateY.value = withTiming(SCREEN_HEIGHT, {
+      duration: 250,
+      easing: Easing.out(Easing.quad),
+    });
+    overlayOpacity.value = withTiming(0, {
+      duration: 200,
+      easing: Easing.in(Easing.quad),
+    });
+
+    // Call the safe wrapper on JS thread
     runOnJS(safeOnClose)();
-  }, [translateY, overlayOpacity, safeOnClose]);
+  }, [translateY, overlayOpacity, safeOnClose, isClosingShared]);
 
   // Animated styles
   const animatedStyle = useAnimatedStyle(() => ({
@@ -141,8 +168,8 @@ export default function BottomSheetBase({
         translateY.value > SCREEN_HEIGHT * 0.2 || velocity > 500;
 
       if (shouldClose) {
-        // Must use runOnJS since we're calling a JS function from UI thread
-        runOnJS(close)();
+        // Use the worklet version of close
+        closeWorklet();
       } else {
         // Otherwise snap back to initial position with spring animation
         translateY.value = withSpring(0, {
@@ -180,10 +207,10 @@ export default function BottomSheetBase({
   useEffect(() => {
     // Reset guards when visibility changes to true (opening)
     if (visible) {
-      isClosing.current = false;
+      isClosingShared.value = false;
       hasCalledOnClose.current = false;
     }
-    
+
     // Solo abrir en la primera renderización si visible es true
     // No cerrar en la primera renderización aunque visible sea false
     if (firstRenderRef.current) {
@@ -197,10 +224,10 @@ export default function BottomSheetBase({
     // Después de la primera renderización, responder normalmente a los cambios de visible
     if (visible) {
       open();
-    } else if (!isClosing.current) {
-      close();
+    } else if (!isClosingShared.value) {
+      closeFromJS();
     }
-  }, [visible, open, close]);
+  }, [visible, open, closeFromJS, isClosingShared]);
 
   return (
     <>
@@ -208,12 +235,12 @@ export default function BottomSheetBase({
       <Animated.View
         className="absolute top-0 left-0 right-0 bottom-0 bg-black z-40"
         style={overlayStyle}
-        pointerEvents={visible && !isClosing.current ? "auto" : "none"}
+        pointerEvents={visible && !isClosingShared.value ? "auto" : "none"}
       >
-        <TouchableWithoutFeedback 
+        <TouchableWithoutFeedback
           onPress={() => {
-            if (!isClosing.current) {
-              close();
+            if (!isClosingShared.value) {
+              closeFromJS();
             }
           }}
         >
@@ -221,15 +248,22 @@ export default function BottomSheetBase({
         </TouchableWithoutFeedback>
       </Animated.View>
 
-      {/* Bottom sheet */}
-      <GestureDetector gesture={gesture}>
+      {/* Bottom sheet - wrapper for keyboard avoidance */}
+      <Animated.View
+        className="w-full absolute bottom-0 z-50"
+        style={animatedStyle}
+      >
+        {/* Inner container with styling and drag animation */}
         <Animated.View
-          className="w-full absolute bottom-0 z-50 bg-white rounded-t-[25px] px-5 pb-6"
-          style={[reanimatedBottomStyle, visible ? animatedStyle : {}]}
+          className="bg-white rounded-t-[25px] px-5 pb-6"
+          style={reanimatedBottomStyle}
         >
-          <View className="w-full items-center pt-4 pb-2">
-            <View className="w-[75px] h-1 bg-gray-300 rounded-full" />
-          </View>
+          {/* Handle area - only this part captures drag gestures */}
+          <GestureDetector gesture={gesture}>
+            <View className="w-full items-center pt-4 pb-2">
+              <View className="w-[75px] h-1 bg-gray-300 rounded-full" />
+            </View>
+          </GestureDetector>
 
           {title && (
             <View className="mb-4">
@@ -241,7 +275,7 @@ export default function BottomSheetBase({
 
           {children}
         </Animated.View>
-      </GestureDetector>
+      </Animated.View>
     </>
   );
 }

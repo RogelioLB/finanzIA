@@ -1,5 +1,5 @@
 import { useSQLiteService } from '@/lib/database/sqliteService';
-import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 interface TransactionDisplay {
   id: string;
@@ -78,8 +78,11 @@ export function TransactionsProvider({ children }: TransactionsProviderProps) {
     refreshTransactions();
   }, []);
 
-  // Obtener las últimas 5 transacciones
-  const recentTransactions = transactions.slice(0, 10);
+  // Obtener las últimas 10 transacciones (memoizado)
+  const recentTransactions = useMemo(
+    () => transactions.slice(0, 10),
+    [transactions]
+  );
 
   const value: TransactionsContextType = {
     transactions,

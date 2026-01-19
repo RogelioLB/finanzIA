@@ -112,11 +112,15 @@ export const scheduleSubscriptionNotification = async (
       };
       break;
     case "weekly":
+      // getDay() retorna 0-6 (0=domingo), pero Expo Notifications espera 1-7 (1=domingo)
+      // Fórmula: (getDay() + 1) convierte 0-6 a 1-7
+      const jsWeekday = notificationDate.getDay(); // 0-6
+      const expoWeekday = jsWeekday + 1; // 1-7
       trigger = {
         type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-        hour: notificationDate.getHours(),
-        minute: notificationDate.getMinutes(),
-        weekday: notificationDate.getDay(),
+        hour: notificationDate.getHours() || 9, // Fallback a las 9am si no hay hora
+        minute: notificationDate.getMinutes() || 0,
+        weekday: Math.max(1, Math.min(7, expoWeekday)), // Asegurar rango 1-7
       };
       break;
     default:
@@ -208,4 +212,114 @@ export const rescheduleForNextPayment = async (
     "La actualización de fechas ahora se maneja automáticamente por el procesador de suscripciones"
   );
   return true;
+};
+
+// ==================== FUNCIONES DE TESTING ====================
+
+/**
+ * Envía una notificación de prueba inmediatamente
+ * Útil para verificar que el sistema de notificaciones funciona correctamente
+ */
+export const sendTestNotification = async (
+  title: string = "Notificación de Prueba",
+  body: string = "Esta es una notificación de prueba del sistema de suscripciones"
+): Promise<string | null> => {
+  try {
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data: { type: "test-notification" },
+      },
+      trigger: null, // Enviar inmediatamente
+    });
+    console.log(`Notificación de prueba enviada (ID: ${notificationId})`);
+    return notificationId;
+  } catch (error) {
+    console.error("Error enviando notificación de prueba:", error);
+    return null;
+  }
+};
+
+/**
+ * Programa una notificación de prueba con un delay específico (en segundos)
+ * Útil para probar notificaciones programadas sin esperar días
+ */
+export const scheduleTestNotificationWithDelay = async (
+  delaySeconds: number,
+  title: string = "Recordatorio de Prueba",
+  body: string = "Esta notificación se programó para probar el sistema"
+): Promise<string | null> => {
+  try {
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data: { type: "test-notification-delayed" },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: delaySeconds,
+        repeats: false,
+      },
+    });
+    console.log(
+      `Notificación de prueba programada para ${delaySeconds} segundos (ID: ${notificationId})`
+    );
+    return notificationId;
+  } catch (error) {
+    console.error("Error programando notificación de prueba:", error);
+    return null;
+  }
+};
+
+/**
+ * Simula una notificación de suscripción
+ * Permite probar el flujo completo sin modificar datos reales
+ */
+export const simulateSubscriptionNotification = async (
+  subscriptionName: string,
+  amount: number
+): Promise<string | null> => {
+  try {
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `Recordatorio: ${subscriptionName}`,
+        body: `Tu suscripción de $${amount.toFixed(2)} vence mañana`,
+        data: {
+          type: "subscription-reminder-test",
+          subscriptionName,
+          amount,
+        },
+      },
+      trigger: null, // Enviar inmediatamente
+    });
+    console.log(
+      `Notificación de suscripción simulada enviada (ID: ${notificationId})`
+    );
+    return notificationId;
+  } catch (error) {
+    console.error("Error simulando notificación de suscripción:", error);
+    return null;
+  }
+};
+
+/**
+ * Lista todas las notificaciones programadas
+ * Útil para depuración
+ */
+export const listScheduledNotifications = async (): Promise<
+  Notifications.NotificationRequest[]
+> => {
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    console.log(`Notificaciones programadas: ${scheduled.length}`);
+    scheduled.forEach((n, i) => {
+      console.log(`  ${i + 1}. ${n.content.title} (ID: ${n.identifier})`);
+    });
+    return scheduled;
+  } catch (error) {
+    console.error("Error listando notificaciones programadas:", error);
+    return [];
+  }
 };
