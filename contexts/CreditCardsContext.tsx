@@ -104,18 +104,28 @@ const getNextCutOffDate = (cutOffDay: number | undefined): Date => {
   return nextCutOff;
 };
 
-// Función para calcular la próxima fecha de pago
-const getNextPaymentDate = (paymentDueDay: number | undefined): Date => {
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-  const day = paymentDueDay || 15;
+// Función para calcular la próxima fecha de pago basada en la fecha de corte
+const getNextPaymentDate = (
+  paymentDueDay: number | undefined,
+  cutOffDay: number | undefined,
+  nextCutOffDate: Date
+): Date => {
+  const payDay = paymentDueDay || 15;
+  const cutDay = cutOffDay || 1;
 
-  let nextPayment = new Date(currentYear, currentMonth, day);
-  if (nextPayment <= today) {
-    nextPayment = new Date(currentYear, currentMonth + 1, day);
+  // Obtener el mes y año de la fecha de corte calculada
+  const cutOffMonth = nextCutOffDate.getMonth();
+  const cutOffYear = nextCutOffDate.getFullYear();
+
+  // Si el día de pago es mayor que el día de corte, el pago es en el mismo mes
+  // Si el día de pago es menor o igual que el día de corte, el pago es en el mes siguiente
+  if (payDay > cutDay) {
+    // Pago en el mismo mes que el corte (ej: corte 13, pago 23)
+    return new Date(cutOffYear, cutOffMonth, payDay);
+  } else {
+    // Pago en el mes siguiente al corte (ej: corte 25, pago 5)
+    return new Date(cutOffYear, cutOffMonth + 1, payDay);
   }
-  return nextPayment;
 };
 
 // Convertir Wallet (type='credit') a CreditCard
@@ -128,7 +138,11 @@ const walletToCreditCard = (wallet: Wallet): CreditCard => {
     : 0;
 
   const next_cut_off_date = getNextCutOffDate(wallet.cut_off_day);
-  const next_payment_date = getNextPaymentDate(wallet.payment_due_day);
+  const next_payment_date = getNextPaymentDate(
+    wallet.payment_due_day,
+    wallet.cut_off_day,
+    next_cut_off_date
+  );
 
   const today = new Date();
   const days_until_payment = Math.ceil(
