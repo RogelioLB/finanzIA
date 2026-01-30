@@ -61,7 +61,8 @@ export default function AddTransactionScreen() {
     if (!isMounted.current) return;
     setFlowVisible(false);
     // Crear la transacción automáticamente después del flow
-    const success = await createTransaction(timestamp);
+    // Pass the amount from the flow data directly to avoid race condition with state
+    const success = await createTransaction(timestamp, data.amount);
     if (success && isMounted.current) {
       resetTransaction();
       setTimestamp(Date.now());

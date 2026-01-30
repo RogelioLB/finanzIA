@@ -139,7 +139,7 @@ export default function OnboardingScreen() {
           {step === 1 && (
             <Animated.View
               entering={SlideInRight.duration(400)}
-              style={styles.stepContainer}
+              style={styles.stepContainerCurrency}
             >
               {/* Header */}
               <View style={styles.stepHeader}>
@@ -243,6 +243,10 @@ const styles = StyleSheet.create({
   stepContainer: {
     flex: 1,
     justifyContent: "center",
+  },
+  stepContainerCurrency: {
+    flex: 1,
+    paddingTop: 16,
   },
   stepHeader: {
     flexDirection: "row",

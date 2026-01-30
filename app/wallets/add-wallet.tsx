@@ -7,6 +7,8 @@ import { useRouter } from "expo-router";
 
 import React, { useState } from "react";
 import {
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -103,7 +105,10 @@ export default function AddWalletScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
 
       {/* Header */}
       <View style={styles.header}>
@@ -135,7 +140,7 @@ export default function AddWalletScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Nombre */}
         <View style={styles.section}>
           <TextInput
@@ -206,6 +211,7 @@ export default function AddWalletScreen() {
           </View>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Alertas animadas */}
       <AnimatedAlert

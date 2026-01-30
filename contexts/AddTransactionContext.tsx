@@ -32,7 +32,7 @@ interface AddTransactionContextType {
   setObjectiveId: (id?: string) => void;
   isLoading: boolean;
   isCreating: boolean;
-  createTransaction: (timestamp?: number) => Promise<boolean>;
+  createTransaction: (timestamp?: number, overrideAmount?: string) => Promise<boolean>;
   resetTransaction: () => void;
   error: string | null;
   clearError: () => void;
@@ -56,7 +56,7 @@ const defaultContextValue: AddTransactionContextType = {
   setObjectiveId: () => {},
   isLoading: false,
   isCreating: false,
-  createTransaction: async () => false,
+  createTransaction: async (_t?: number, _a?: string) => false,
   resetTransaction: () => {},
   error: null,
   clearError: () => {},
@@ -86,12 +86,13 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
   const { createTransaction: createTransactionDB, updateWalletBalance, updateObjective, getObjectiveById, getObjectiveByCreditWallet, createObjective, getWalletById } = useSQLiteService();
   const { refreshObjectives } = useObjectives();
 
-  const createTransaction = async (timestamp?: number): Promise<boolean> => {
-    if (!selectedWallet || parseFloat(amount) <= 0) {
+  const createTransaction = async (timestamp?: number, overrideAmount?: string): Promise<boolean> => {
+    const effectiveAmount = overrideAmount || amount;
+    if (!selectedWallet || parseFloat(effectiveAmount) <= 0) {
       return false;
     }
 
-    const amountNum = parseFloat(amount);
+    const amountNum = parseFloat(effectiveAmount);
 
     // Validar límites para gastos
     if (type === "expense") {
@@ -135,7 +136,7 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
       if (!title.trim()) {
         await createTransactionDB({
           wallet_id: selectedWallet.id,
-          amount: parseFloat(amount),
+          amount: amountNum,
           type: type,
           title: category?.name || "",
           note: note.trim() || undefined,
@@ -146,7 +147,7 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
       } else {
         await createTransactionDB({
           wallet_id: selectedWallet.id,
-          amount: parseFloat(amount),
+          amount: amountNum,
           type: type,
           title: title.trim() || "",
           note: note.trim() || undefined,
@@ -164,7 +165,7 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
 
           // Para objetivos de ahorro: ingresos aumentan el progreso
           if (objective.type === "savings" && type === "income") {
-            progressDelta = parseFloat(amount);
+            progressDelta = amountNum;
           }
 
           // Actualizar el progreso del objetivo

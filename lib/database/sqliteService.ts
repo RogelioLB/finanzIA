@@ -519,6 +519,11 @@ export function useSQLiteService() {
    * Elimina una billetera por su ID
    */
   const deleteWallet = async (id: string): Promise<void> => {
+    // Delete associated transactions first (both as source and destination wallet)
+    await db.runAsync("DELETE FROM transactions WHERE wallet_id = ? OR to_wallet_id = ?", [id, id]);
+    // Delete associated objectives linked to this wallet (credit card debts)
+    await db.runAsync("DELETE FROM objectives WHERE credit_wallet_id = ?", [id]);
+    // Delete the wallet itself
     await db.runAsync("DELETE FROM wallets WHERE id = ?", [id]);
   };
 
