@@ -50,6 +50,7 @@ const transactionToSubscription = (transaction: Transaction): Subscription => {
     amount: transaction.amount,
     frequency: (transaction.subscription_frequency ||
       "monthly") as SubscriptionFrequency,
+    type: (transaction.type || "expense") as "income" | "expense" | "transfer",
     next_payment_date: transaction.next_payment_date || Date.now(),
     account_id: transaction.wallet_id,
     category_id: transaction.category_id,
@@ -130,6 +131,10 @@ export const updateSubscription = async (
     fieldsToUpdate.push("amount = ?");
     values.push(updates.amount);
   }
+  if (updates.type !== undefined) {
+    fieldsToUpdate.push("type = ?");
+    values.push(updates.type);
+  }
   if (updates.frequency !== undefined) {
     fieldsToUpdate.push("subscription_frequency = ?");
     values.push(updates.frequency);
@@ -184,7 +189,7 @@ export const createSubscriptionTransaction = async (
       transactionId,
       subscription.account_id,
       subscription.amount,
-      "expense", // Las suscripciones típicamente son gastos
+      subscription.type, // Usar el tipo original de la suscripción (gasto o ingreso)
       subscription.name,
       subscription.description ||
         `Pago automático de suscripción: ${subscription.name}`,

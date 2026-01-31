@@ -259,7 +259,7 @@ export default function MoreScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Versión</Text>
-              <Text style={styles.infoValue}>1.0.0</Text>
+              <Text style={styles.infoValue}>1.0.2</Text>
             </View>
             <View style={styles.infoDivider} />
             <View style={styles.infoRow}>

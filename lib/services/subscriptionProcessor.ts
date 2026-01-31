@@ -51,7 +51,8 @@ export const processSubscriptionsDueToday = async (
         // 4. Enviar notificación de confirmación
         await sendTransactionCreatedNotification(
           subscription.name,
-          subscription.amount
+          subscription.amount,
+          subscription.type
         );
 
         processed++;
@@ -126,17 +127,25 @@ export const sendReminderNotifications = async (
  */
 export const sendTransactionCreatedNotification = async (
   subscriptionName: string,
-  amount: number
+  amount: number,
+  type: "income" | "expense" | "transfer" = "expense"
 ): Promise<boolean> => {
   try {
+    const isIncome = type === "income";
+    const title = isIncome ? "Ingreso registrado" : "Pago registrado";
+    const body = isIncome
+      ? `Se ha registrado el ingreso de ${subscriptionName} por $${amount.toFixed(2)}`
+      : `Se ha registrado el pago de ${subscriptionName} por $${amount.toFixed(2)}`;
+
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: "Transacción acreditada",
-        body: `Se ha registrado el pago de ${subscriptionName} por $${amount.toFixed(2)}`,
+        title,
+        body,
         data: {
           type: "subscription-transaction-created",
           subscriptionName,
           amount,
+          transactionType: type,
         },
       },
       trigger: null, // Enviar inmediatamente

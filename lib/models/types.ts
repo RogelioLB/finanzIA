@@ -53,6 +53,7 @@ export type SubscriptionFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 export interface Subscription extends BaseModel {
   name: string;
   amount: number;
+  type: TransactionType;
   frequency: SubscriptionFrequency;
   next_payment_date: number;
   account_id: string;

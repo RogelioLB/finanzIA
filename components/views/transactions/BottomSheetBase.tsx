@@ -252,6 +252,7 @@ export default function BottomSheetBase({
       <Animated.View
         className="w-full absolute bottom-0 z-50"
         style={animatedStyle}
+        pointerEvents={visible ? "box-none" : "none"}
       >
         {/* Inner container with styling and drag animation */}
         <Animated.View
