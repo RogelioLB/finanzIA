@@ -34,6 +34,7 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
+import { useRouter } from "expo-router";
 
 interface MonthTab {
   month: number;
@@ -344,9 +345,10 @@ export default function HistoryScreen() {
   
   const renderTransactionItem = ({ item }: { item: TransactionItem }) => {
     const isExcluded = item.is_excluded === 1;
+    const router = useRouter()
     
     return (
-      <View style={styles.transactionItem}>
+      <TouchableOpacity style={styles.transactionItem} onPress={()=>router.push(`/edit-transaction/${item.id}`)}>
         <View
           style={{
             ...styles.transactionIcon,
@@ -402,7 +404,7 @@ export default function HistoryScreen() {
             {formatDate(item.timestamp)}
           </Text>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
