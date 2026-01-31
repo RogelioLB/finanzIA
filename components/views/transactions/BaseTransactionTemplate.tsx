@@ -227,7 +227,7 @@ export default function BaseTransactionTemplate({
         </TouchableOpacity>
       </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Tabs */}
         <View className="">
           <View

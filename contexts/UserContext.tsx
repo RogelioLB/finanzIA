@@ -149,13 +149,17 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             [i, widget.is_enabled, Date.now(), widget.id]
           );
         }
-        await refreshSettings();
+        // Update local state directly without triggering isLoading
+        const widgetSettings = await db.getAllAsync<WidgetSetting>(
+          "SELECT * FROM widget_settings ORDER BY position ASC"
+        );
+        setWidgets(widgetSettings);
       } catch (error) {
         console.error("Error updating widgets:", error);
         throw error;
       }
     },
-    [db, refreshSettings]
+    [db]
   );
 
   const toggleWidget = useCallback(
@@ -165,13 +169,17 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           `UPDATE widget_settings SET is_enabled = ?, updated_at = ? WHERE widget_type = ?`,
           [enabled ? 1 : 0, Date.now(), widgetType]
         );
-        await refreshSettings();
+        // Update local state directly without triggering isLoading
+        const widgetSettings = await db.getAllAsync<WidgetSetting>(
+          "SELECT * FROM widget_settings ORDER BY position ASC"
+        );
+        setWidgets(widgetSettings);
       } catch (error) {
         console.error("Error toggling widget:", error);
         throw error;
       }
     },
-    [db, refreshSettings]
+    [db]
   );
 
   useEffect(() => {

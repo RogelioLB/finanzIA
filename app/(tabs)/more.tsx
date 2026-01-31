@@ -67,14 +67,20 @@ export default function MoreScreen() {
       // Abrir la base de datos
       const db = await SQLite.openDatabaseAsync("financeapp.db");
       
-      // Eliminar todas las tablas
+      // Eliminar todas las tablas (order matters due to foreign keys)
       await db.execAsync(`
-        DROP TABLE IF EXISTS transactions;
-        DROP TABLE IF EXISTS wallets;
-        DROP TABLE IF EXISTS categories;
-        DROP TABLE IF EXISTS budgets;
+        DROP TABLE IF EXISTS transaction_labels;
+        DROP TABLE IF EXISTS labels;
         DROP TABLE IF EXISTS category_budget_limits;
+        DROP TABLE IF EXISTS transactions;
+        DROP TABLE IF EXISTS budgets;
         DROP TABLE IF EXISTS objectives;
+        DROP TABLE IF EXISTS categories;
+        DROP TABLE IF EXISTS wallets;
+        DROP TABLE IF EXISTS credit_cards;
+        DROP TABLE IF EXISTS chat_messages;
+        DROP TABLE IF EXISTS widget_settings;
+        DROP TABLE IF EXISTS user_settings;
         DROP TABLE IF EXISTS database_version;
       `);
 

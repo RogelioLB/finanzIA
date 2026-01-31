@@ -130,6 +130,7 @@ export default function CategorySheet({
               style={{ height: 300 }} // Altura fija para el ScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 20 }}
+              keyboardShouldPersistTaps="handled"
             >
               <View className="flex-row flex-wrap justify-between">
                 {filteredCategories.map((category, index) => (
