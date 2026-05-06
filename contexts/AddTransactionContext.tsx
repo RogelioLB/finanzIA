@@ -1,7 +1,9 @@
 import { Category } from "@/contexts/CategoriesContext";
 import { useSQLiteService, Wallet } from "@/lib/database/sqliteService";
 import React, { createContext, ReactNode, useContext, useState } from "react";
+import { useInvestments } from "./InvestmentsContext";
 import { useObjectives } from "./ObjectivesContext";
+import { useSubscriptions } from "./SubscriptionsContext";
 import { useTransactions } from "./TransactionsContext";
 import { useWallets } from "./WalletsContext";
 
@@ -32,7 +34,17 @@ interface AddTransactionContextType {
   setObjectiveId: (id?: string) => void;
   isLoading: boolean;
   isCreating: boolean;
-  createTransaction: (timestamp?: number, overrideAmount?: string) => Promise<boolean>;
+  createTransaction: (
+    timestamp?: number,
+    overrides?: {
+      amount?: string;
+      wallet?: Wallet | null;
+      category?: Category | null;
+      note?: string;
+      title?: string;
+      type?: "expense" | "income";
+    }
+  ) => Promise<boolean>;
   resetTransaction: () => void;
   error: string | null;
   clearError: () => void;
@@ -56,7 +68,7 @@ const defaultContextValue: AddTransactionContextType = {
   setObjectiveId: () => {},
   isLoading: false,
   isCreating: false,
-  createTransaction: async (_t?: number, _a?: string) => false,
+  createTransaction: async () => false,
   resetTransaction: () => {},
   error: null,
   clearError: () => {},
@@ -83,22 +95,46 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
   const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);
   const { wallets, isLoading, refreshWallets } = useWallets();
   const { refreshTransactions } = useTransactions();
+  const { refreshSubscriptions } = useSubscriptions();
+  const { refreshInvestments } = useInvestments();
   const { createTransaction: createTransactionDB, updateWalletBalance, updateObjective, getObjectiveById, getObjectiveByCreditWallet, createObjective, getWalletById } = useSQLiteService();
   const { refreshObjectives } = useObjectives();
 
-  const createTransaction = async (timestamp?: number, overrideAmount?: string): Promise<boolean> => {
-    const effectiveAmount = overrideAmount || amount;
-    if (!selectedWallet || parseFloat(effectiveAmount) <= 0) {
+  const createTransaction = async (
+    timestamp?: number,
+    overrides?: {
+      amount?: string;
+      wallet?: Wallet | null;
+      category?: Category | null;
+      note?: string;
+      title?: string;
+      type?: "expense" | "income";
+    }
+  ): Promise<boolean> => {
+    const effectiveAmount = overrides?.amount ?? amount;
+    const effectiveWallet = overrides?.wallet ?? selectedWallet;
+    const effectiveCategory = overrides?.category ?? category;
+    const effectiveNote = overrides?.note ?? note;
+    const effectiveTitle = overrides?.title ?? title;
+    const effectiveType = overrides?.type ?? type;
+
+    if (!effectiveWallet) {
+      const errorMsg = "Selecciona una cuenta";
+      setError(errorMsg);
+      console.error(errorMsg);
+      return false;
+    }
+    if (parseFloat(effectiveAmount) <= 0) {
       return false;
     }
 
     const amountNum = parseFloat(effectiveAmount);
 
     // Validar límites para gastos
-    if (type === "expense") {
+    if (effectiveType === "expense") {
       // Para tarjetas de crédito: deben tener límite configurado
-      if (selectedWallet.type === "credit") {
-        if (!selectedWallet.credit_limit || selectedWallet.credit_limit <= 0) {
+      if (effectiveWallet.type === "credit") {
+        if (!effectiveWallet.credit_limit || effectiveWallet.credit_limit <= 0) {
           const errorMsg = "La tarjeta de crédito no tiene límite configurado";
           setError(errorMsg);
           console.error(errorMsg);
@@ -107,7 +143,7 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
       }
       // Para cuentas regulares: deben tener saldo suficiente
       else {
-        const availableBalance = selectedWallet.net_balance || selectedWallet.balance || 0;
+        const availableBalance = effectiveWallet.net_balance || effectiveWallet.balance || 0;
         if (availableBalance < amountNum) {
           const errorMsg = `Saldo insuficiente. Disponible: $${availableBalance.toFixed(2)}, Necesario: $${amountNum.toFixed(2)}`;
           setError(errorMsg);
@@ -120,12 +156,12 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
     const transactionTimestamp = timestamp || Date.now();
 
     console.log({
-      wallet_id: selectedWallet.id,
+      wallet_id: effectiveWallet.id,
       amount: amountNum,
-      type: type,
-      title: title.trim(),
-      note: note.trim() || undefined,
-      category_id: category?.id,
+      type: effectiveType,
+      title: effectiveTitle.trim(),
+      note: effectiveNote.trim() || undefined,
+      category_id: effectiveCategory?.id,
       timestamp: transactionTimestamp,
     });
 
@@ -133,25 +169,25 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
       setIsCreating(true);
 
       // Validar que el título no esté vacío, SI ESTA VACIO TOMAR EL NOMBRE DE LA CATEGORIA
-      if (!title.trim()) {
+      if (!effectiveTitle.trim()) {
         await createTransactionDB({
-          wallet_id: selectedWallet.id,
+          wallet_id: effectiveWallet.id,
           amount: amountNum,
-          type: type,
-          title: category?.name || "",
-          note: note.trim() || undefined,
-          category_id: category?.id,
+          type: effectiveType,
+          title: effectiveCategory?.name || "",
+          note: effectiveNote.trim() || undefined,
+          category_id: effectiveCategory?.id,
           objective_id: objective_id,
           timestamp: transactionTimestamp,
         });
       } else {
         await createTransactionDB({
-          wallet_id: selectedWallet.id,
+          wallet_id: effectiveWallet.id,
           amount: amountNum,
-          type: type,
-          title: title.trim() || "",
-          note: note.trim() || undefined,
-          category_id: category?.id,
+          type: effectiveType,
+          title: effectiveTitle.trim() || "",
+          note: effectiveNote.trim() || undefined,
+          category_id: effectiveCategory?.id,
           objective_id: objective_id,
           timestamp: transactionTimestamp,
         });
@@ -164,7 +200,7 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
           let progressDelta = 0;
 
           // Para objetivos de ahorro: ingresos aumentan el progreso
-          if (objective.type === "savings" && type === "income") {
+          if (objective.type === "savings" && effectiveType === "income") {
             progressDelta = amountNum;
           }
 
@@ -178,12 +214,12 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
       }
 
       // Si la transacción es en una tarjeta de crédito, crear/actualizar deuda automáticamente
-      if (selectedWallet.type === "credit") {
+      if (effectiveWallet.type === "credit") {
         // Buscar si ya existe una deuda para esta tarjeta
-        let debtObjective = await getObjectiveByCreditWallet(selectedWallet.id);
+        let debtObjective = await getObjectiveByCreditWallet(effectiveWallet.id);
 
         // Obtener el wallet actualizado para obtener el balance actual (net_balance incluye todas las transacciones)
-        const updatedWallet = await getWalletById(selectedWallet.id);
+        const updatedWallet = await getWalletById(effectiveWallet.id);
         if (!updatedWallet) {
           throw new Error("Wallet not found");
         }
@@ -205,23 +241,20 @@ export const AddTransactionProvider: React.FC<{ children: ReactNode }> = ({
           // amount = deuda actual (lo que debes)
           // current_amount = 0 (no has pagado nada aún)
           await createObjective({
-            title: `Deuda: ${selectedWallet.name}`,
+            title: `Deuda: ${effectiveWallet.name}`,
             amount: debtAmount,
             current_amount: 0,
             type: "debt",
-            credit_wallet_id: selectedWallet.id,
+            credit_wallet_id: effectiveWallet.id,
           });
         }
       }
 
-      // Refrescar las wallets para actualizar los balances
       await refreshWallets();
-
-      // Refrescar las transacciones para mostrar la nueva
       await refreshTransactions();
-
-      // Refrescar los objetivos
       await refreshObjectives();
+      await refreshSubscriptions();
+      await refreshInvestments();
 
       return true;
     } catch (error) {

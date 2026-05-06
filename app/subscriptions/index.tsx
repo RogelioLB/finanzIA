@@ -1,456 +1,250 @@
-import { useTransactions } from "@/contexts/TransactionsContext";
+import { useSubscriptions } from "@/contexts/SubscriptionsContext";
 import { useWallets } from "@/contexts/WalletsContext";
-import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
-import {
-    ActivityIndicator,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from "react-native";
+import { useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AnimatedAlert from "../../components/AnimatedAlert";
-import { Transaction, useSQLiteService } from "../../lib/database/sqliteService";
+import { useTheme } from "@/theme/ThemeProvider";
+import { DesignIcon } from "@/components/ui/Icon";
+import { MXN } from "@/theme/format";
+import { Subscription } from "@/lib/models/types";
+import QuickPaySheet from "@/components/sheets/QuickPaySheet";
+
+function SubscriptionIcon({ name, size, color }: { name?: string; size: number; color: string }) {
+  const props = { size, color, strokeWidth: 1.6 };
+  const n = (name || '').toLowerCase();
+  if (n.includes('netflix') || n.includes('streaming') || n.includes('video')) return <DesignIcon.Fun {...props} />;
+  if (n.includes('spotify') || n.includes('música') || n.includes('music')) return <DesignIcon.Fun {...props} />;
+  if (n.includes('gym') || n.includes('gimnasio') || n.includes('fit')) return <DesignIcon.Health {...props} />;
+  if (n.includes('luz') || n.includes('electric') || n.includes('servicio')) return <DesignIcon.Bolt {...props} />;
+  if (n.includes('internet') || n.includes('wifi')) return <DesignIcon.Stocks {...props} />;
+  if (n.includes('telef') || n.includes('phone')) return <DesignIcon.Phone {...props} />;
+  return <DesignIcon.Bolt {...props} />;
+}
+
+function dayLabel(daysUntil: number) {
+  if (daysUntil === 0) return 'Hoy';
+  if (daysUntil === 1) return 'Mañana';
+  return `En ${daysUntil}d`;
+}
 
 export default function SubscriptionsScreen() {
+  const { theme, accent, density, fabIconColor } = useTheme();
   const router = useRouter();
-  const { getTransactions, createTransaction, updateTransaction } = useSQLiteService();
-  const { refreshWallets } = useWallets();
-  const { refreshTransactions } = useTransactions();
+  const { subscriptions } = useSubscriptions();
 
-  const [subscriptions, setSubscriptions] = useState<Transaction[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [processingId, setProcessingId] = useState<string | null>(null);
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [showErrorAlert, setShowErrorAlert] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [quickPaySub, setQuickPaySub] = useState<Subscription | null>(null);
+  const [showQuickPay, setShowQuickPay] = useState(false);
 
-  const loadSubscriptions = async () => {
-    setIsLoading(true);
-    try {
-      const allTransactions = await getTransactions();
-      const subs = allTransactions.filter((t) => t.is_subscription === 1);
-      setSubscriptions(subs);
-    } catch (error) {
-      console.error("Error loading subscriptions:", error);
-    } finally {
-      setIsLoading(false);
-    }
+  const compact = density === 'compact';
+  const pad = compact ? 16 : 20;
+
+  const today = new Date();
+
+  const enriched = useMemo(() => {
+    return subscriptions.map(s => {
+      const due = s.next_payment_date ? new Date(s.next_payment_date) : new Date(today.getFullYear(), today.getMonth(), 1);
+      if (due < today) due.setMonth(due.getMonth() + 1);
+      const dayOfMonth = due.getDate();
+      const daysUntil = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return { ...s, due, daysUntil, dayOfMonth };
+    }).sort((a, b) => a.daysUntil - b.daysUntil);
+  }, [subscriptions, today]);
+
+  const incomes = enriched.filter(s => s.type === 'income');
+  const subs = enriched.filter(s => s.type !== 'income');
+  const totalIncome = incomes.reduce((sum, s) => sum + Math.abs(s.amount), 0);
+  const totalSubs = subs.reduce((sum, s) => sum + Math.abs(s.amount), 0);
+  const net = totalIncome - totalSubs;
+  const within7 = enriched.filter(s => s.daysUntil <= 7);
+
+  const openQuickPay = (item: Subscription) => {
+    setQuickPaySub(item);
+    setShowQuickPay(true);
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      loadSubscriptions();
-    }, [])
-  );
-
-  const handleQuickPay = async (subscription: Transaction) => {
-    setProcessingId(subscription.id);
-
-    try {
-      // 1. Crear una transacción normal (sin suscripción) para registrar el pago
-      await createTransaction({
-        wallet_id: subscription.wallet_id,
-        amount: subscription.amount,
-        type: subscription.type,
-        title: subscription.title,
-        note: subscription.note || `Pago de suscripción: ${subscription.title}`,
-        category_id: subscription.category_id,
-        is_subscription: 0, // Transacción normal
-        is_excluded: 0, // Incluida en el balance
-        timestamp: Date.now(), // Fecha actual del pago
-      });
-
-      // 2. Calcular la próxima fecha de pago
-      const currentDate = subscription.next_payment_date || Date.now();
-      let nextDate = currentDate;
-      
-      switch (subscription.subscription_frequency) {
-        case "weekly":
-          nextDate = currentDate + 7 * 24 * 60 * 60 * 1000;
-          break;
-        case "monthly":
-          nextDate = currentDate + 30 * 24 * 60 * 60 * 1000;
-          break;
-        case "yearly":
-          nextDate = currentDate + 365 * 24 * 60 * 60 * 1000;
-          break;
-      }
-
-      // 3. Actualizar la suscripción existente con la nueva fecha de pago
-      await updateTransaction(subscription.id, {
-        next_payment_date: nextDate,
-        timestamp: nextDate, // Actualizar timestamp para que no aparezca en historial actual
-      });
-
-      await refreshWallets();
-      await refreshTransactions();
-      await loadSubscriptions(); // Recargar lista
-      setShowSuccessAlert(true);
-    } catch (error) {
-      console.error("Error processing payment:", error);
-      setErrorMessage("No se pudo procesar el pago");
-      setShowErrorAlert(true);
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  const getFrequencyText = (frequency?: string) => {
-    switch (frequency) {
-      case "weekly":
-        return "Semanal";
-      case "monthly":
-        return "Mensual";
-      case "yearly":
-        return "Anual";
-      default:
-        return "Mensual";
-    }
-  };
-
-  const getTimeRemaining = (nextPaymentDate?: number) => {
-    if (!nextPaymentDate) return "Fecha no definida";
-    
-    const now = Date.now();
-    const diff = nextPaymentDate - now;
-    
-    if (diff < 0) return "Vencido";
-    
-    const days = Math.floor(diff / (24 * 60 * 60 * 1000));
-    const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-    
-    if (days > 0) {
-      return `En ${days} ${days === 1 ? "día" : "días"}`;
-    } else if (hours > 0) {
-      return `En ${hours} ${hours === 1 ? "hora" : "horas"}`;
-    } else {
-      return "Hoy";
-    }
-  };
-
-  const renderSubscription = ({ item }: { item: Transaction }) => {
-    const isProcessing = processingId === item.id;
-
+  const renderUpcoming = ({ item }: { item: any }) => {
+    const isIncome = item.type === 'income';
     return (
       <TouchableOpacity
-        style={styles.subscriptionCard}
+        style={[styles.row, { borderBottomColor: theme.divider }]}
         onPress={() => router.push(`/subscriptions/edit/${item.id}` as any)}
-        activeOpacity={0.7}
       >
-        <View style={styles.subscriptionHeader}>
-          <View style={styles.subscriptionInfo}>
-            {item.category_icon && (
-              <View
-                style={[
-                  styles.categoryIcon,
-                  { backgroundColor: item.category_color || "#7952FC" },
-                ]}
-              >
-                <Text style={styles.categoryIconText}>{item.category_icon}</Text>
-              </View>
-            )}
-            <View style={styles.subscriptionDetails}>
-              <Text style={styles.subscriptionTitle}>{item.title}</Text>
-              <View style={styles.subscriptionMeta}>
-                <Ionicons name="calendar-outline" size={14} color="#6B7280" />
-                <Text style={styles.subscriptionFrequency}>
-                  {getFrequencyText(item.subscription_frequency)}
-                </Text>
-                {item.wallet_name && (
-                  <>
-                    <Text style={styles.metaSeparator}>•</Text>
-                    <Text style={styles.walletName}>{item.wallet_name}</Text>
-                  </>
-                )}
-              </View>
-              <View style={styles.timeRemainingContainer}>
-                <Ionicons name="time-outline" size={14} color="#7952FC" />
-                <Text style={styles.timeRemainingText}>
-                  {getTimeRemaining(item.next_payment_date)}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.subscriptionRight}>
-            <Text
-              style={[
-                styles.subscriptionAmount,
-                { color: item.type === "income" ? "#4CAF50" : "#FF6B6B" },
-              ]}
-            >
-              {item.type === "income" ? "+" : "-"}${item.amount.toFixed(2)}
-            </Text>
-          </View>
+        <View style={[styles.iconBox, { backgroundColor: `${item.wallet_color || accent}22` }]}>
+          <SubscriptionIcon name={item.name} size={16} color={item.wallet_color || accent} />
         </View>
-
-        {/* Quick Pay Button */}
+        <View style={styles.rowInfo}>
+          <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>{item.name}</Text>
+          <Text style={[styles.rowMeta, { color: theme.textTer }]}>{dayLabel(item.daysUntil)} · {item.wallet_name || 'Sin cuenta'}</Text>
+        </View>
+        <Text style={[styles.rowAmount, { color: isIncome ? theme.good : theme.text }]}>
+          {isIncome ? '+' : ''}{MXN(Math.abs(item.amount))}
+        </Text>
         <TouchableOpacity
-          style={[
-            styles.quickPayButton,
-            isProcessing && styles.quickPayButtonDisabled,
-          ]}
-          onPress={(e) => {
-            e.stopPropagation();
-            handleQuickPay(item);
-          }}
-          disabled={isProcessing}
+          style={[styles.quickPayBtn, { backgroundColor: `${accent}18` }]}
+          onPress={() => openQuickPay(item)}
+          hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
         >
-          {isProcessing ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              <Ionicons name="flash" size={18} color="#FFFFFF" />
-              <Text style={styles.quickPayButtonText}>Pago Rápido</Text>
-            </>
-          )}
+          <DesignIcon.Bolt size={15} color={accent} strokeWidth={2} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderRecurring = ({ item }: { item: any }) => {
+    const isIncome = item.type === 'income';
+    const dueLabel = item.due?.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) || '';
+    return (
+      <TouchableOpacity
+        style={[styles.row, { borderBottomColor: theme.divider }]}
+        onPress={() => router.push(`/subscriptions/edit/${item.id}` as any)}
+      >
+        <View style={[styles.iconBox, { backgroundColor: `${item.wallet_color || accent}22` }]}>
+          <SubscriptionIcon name={item.name} size={18} color={item.wallet_color || accent} />
+        </View>
+        <View style={styles.rowInfo}>
+          <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>{item.name}</Text>
+          <Text style={[styles.rowMeta, { color: theme.textTer }]}>
+            Día {item.dayOfMonth} · próximo {dueLabel} · {item.wallet_name || ''}
+          </Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={[styles.rowAmount, { color: isIncome ? theme.good : theme.text }]}>
+            {isIncome ? '+' : ''}{MXN(Math.abs(item.amount))}
+          </Text>
+          <Text style={[styles.rowSubAmount, { color: theme.textTer }]}> /mes</Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.quickPayBtn, { backgroundColor: `${accent}18` }]}
+          onPress={() => openQuickPay(item)}
+          hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+        >
+          <DesignIcon.Bolt size={15} color={accent} strokeWidth={2} />
         </TouchableOpacity>
       </TouchableOpacity>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.bg }]} edges={['top']}>
+      <View style={[styles.header, { paddingHorizontal: pad, paddingVertical: 12, borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <DesignIcon.Back size={22} color={theme.text} strokeWidth={1.7} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Suscripciones</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Recurrentes</Text>
         <TouchableOpacity
           onPress={() => router.push("/subscriptions/add" as any)}
-          style={styles.addButton}
+          style={[styles.addBtn, { backgroundColor: accent }]}
         >
-          <Ionicons name="add" size={24} color="#7952FC" />
+          <DesignIcon.Plus size={18} color={fabIconColor} strokeWidth={2} />
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#7952FC" />
-        </View>
-      ) : subscriptions.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="calendar-outline" size={64} color="#D1D5DB" />
-          <Text style={styles.emptyTitle}>No hay suscripciones</Text>
-          <Text style={styles.emptyText}>
-            Agrega tus suscripciones recurrentes para llevar un mejor control
-          </Text>
-          <TouchableOpacity
-            style={styles.emptyButton}
-            onPress={() => router.push("/subscriptions/add" as any)}
-          >
-            <Ionicons name="add" size={20} color="#FFFFFF" />
-            <Text style={styles.emptyButtonText}>Agregar Suscripción</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={subscriptions}
-          renderItem={renderSubscription}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+      <FlatList
+        data={[]}
+        ListHeaderComponent={
+          <View>
+            {/* Net flow card */}
+            <View style={[styles.netCard, { marginHorizontal: pad, backgroundColor: theme.surface, borderColor: theme.border, marginTop: 8, marginBottom: 14 }]}>
+              <Text style={[styles.netLabel, { color: theme.textSec }]}>Flujo mensual neto</Text>
+              <Text style={[styles.netValue, { color: net >= 0 ? theme.text : theme.bad }]}>
+                {net >= 0 ? '+' : '−'}{MXN(Math.abs(net))}
+              </Text>
+              <View style={styles.netStats}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.netStatLabel, { color: theme.textTer }]}>Ingresos</Text>
+                  <Text style={[styles.netStatValue, { color: theme.good }]}>+{MXN(totalIncome)}</Text>
+                </View>
+                <View style={{ width: 1, backgroundColor: theme.divider }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.netStatLabel, { color: theme.textTer }]}>Suscripciones</Text>
+                  <Text style={[styles.netStatValue, { color: theme.bad }]}>{MXN(totalSubs)}</Text>
+                </View>
+                <View style={{ width: 1, backgroundColor: theme.divider }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.netStatLabel, { color: theme.textTer }]}>Activas</Text>
+                  <Text style={[styles.netStatValue, { color: theme.text }]}>{subs.length}</Text>
+                </View>
+              </View>
+            </View>
 
-      {/* Alerts */}
-      <AnimatedAlert
-        visible={showSuccessAlert}
-        title="¡Pago registrado!"
-        message="El pago de la suscripción se ha registrado correctamente"
-        confirmText="OK"
-        confirmButtonColor="#4CAF50"
-        onConfirm={() => setShowSuccessAlert(false)}
+            {/* Upcoming 7 days */}
+            {within7.length > 0 && (
+              <View style={{ marginBottom: 18 }}>
+                <Text style={[styles.sectionTitle, { paddingHorizontal: pad, marginBottom: 10 }]}>Próximos 7 días</Text>
+                <View style={[styles.listCard, { marginHorizontal: pad, backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  {within7.map((item, i) => (
+                    <React.Fragment key={item.id}>
+                      {renderUpcoming({ item })}
+                    </React.Fragment>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Incomes */}
+            <Text style={[styles.sectionTitle, { paddingHorizontal: pad, marginBottom: 10 }]}>
+              Ingresos · {incomes.length}
+            </Text>
+            <View style={[styles.listCard, { marginHorizontal: pad, marginBottom: 18, backgroundColor: theme.surface, borderColor: theme.border }]}>
+              {incomes.length === 0 && (
+                <View style={styles.emptySection}>
+                  <Text style={[styles.emptySectionText, { color: theme.textTer }]}>Sin ingresos recurrentes</Text>
+                </View>
+              )}
+              {incomes.map((item, i) => renderRecurring({ item }))}
+            </View>
+
+            {/* Subscriptions */}
+            <Text style={[styles.sectionTitle, { paddingHorizontal: pad, marginBottom: 10 }]}>
+              Suscripciones · {subs.length}
+            </Text>
+            <View style={[styles.listCard, { marginHorizontal: pad, marginBottom: 24, backgroundColor: theme.surface, borderColor: theme.border }]}>
+              {subs.length === 0 && (
+                <View style={styles.emptySection}>
+                  <Text style={[styles.emptySectionText, { color: theme.textTer }]}>Sin suscripciones</Text>
+                </View>
+              )}
+              {subs.map((item, i) => renderRecurring({ item }))}
+            </View>
+          </View>
+        }
+        renderItem={null}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
       />
-
-      <AnimatedAlert
-        visible={showErrorAlert}
-        title="Error"
-        message={errorMessage}
-        confirmText="OK"
-        confirmButtonColor="#FF6B6B"
-        onConfirm={() => setShowErrorAlert(false)}
+      <QuickPaySheet
+        visible={showQuickPay}
+        subscription={quickPaySub}
+        onClose={() => setShowQuickPay(false)}
+        onSuccess={() => setShowQuickPay(false)}
       />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  addButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 32,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  emptyButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#7952FC",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-  },
-  emptyButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  listContent: {
-    padding: 16,
-    gap: 12,
-  },
-  subscriptionCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  subscriptionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
-  },
-  subscriptionInfo: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    flex: 1,
-    gap: 12,
-  },
-  categoryIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  categoryIconText: {
-    fontSize: 20,
-  },
-  subscriptionDetails: {
-    flex: 1,
-  },
-  subscriptionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 4,
-  },
-  subscriptionMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  subscriptionFrequency: {
-    fontSize: 13,
-    color: "#6B7280",
-  },
-  metaSeparator: {
-    fontSize: 13,
-    color: "#D1D5DB",
-    marginHorizontal: 4,
-  },
-  walletName: {
-    fontSize: 13,
-    color: "#6B7280",
-  },
-  subscriptionRight: {
-    alignItems: "flex-end",
-  },
-  subscriptionAmount: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  quickPayButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#7952FC",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    gap: 6,
-  },
-  quickPayButtonDisabled: {
-    opacity: 0.6,
-  },
-  quickPayButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  timeRemainingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 4,
-  },
-  timeRemainingText: {
-    fontSize: 12,
-    color: "#7952FC",
-    fontWeight: "600",
-  },
+  safeArea: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 0.5 },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 17, fontWeight: '600' },
+  addBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  netCard: { borderRadius: 22, padding: 18, borderWidth: 1 },
+  netLabel: { fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 6 },
+  netValue: { fontSize: 32, fontWeight: '600', letterSpacing: -1.2, marginBottom: 14 },
+  netStats: { flexDirection: 'row', gap: 14 },
+  netStatLabel: { fontSize: 11, marginBottom: 3 },
+  netStatValue: { fontSize: 14, fontWeight: '600' },
+  sectionTitle: { fontSize: 13, fontWeight: '600', letterSpacing: -0.1 },
+  listCard: { borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderBottomWidth: 0.5 },
+  iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  rowInfo: { flex: 1 },
+  rowTitle: { fontSize: 14, fontWeight: '500' },
+  rowMeta: { fontSize: 11, marginTop: 1 },
+  rowAmount: { fontSize: 14, fontWeight: '600' },
+  rowSubAmount: { fontSize: 10, marginTop: 2 },
+  emptySection: { padding: 20, alignItems: 'center' },
+  emptySectionText: { fontSize: 13 },
+  quickPayBtn: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
 });

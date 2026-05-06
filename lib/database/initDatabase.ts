@@ -1,38 +1,23 @@
 import { SQLiteDatabase } from "expo-sqlite";
 import uuid from "react-native-uuid";
 
-/**
- * Constante para la versión actual de la base de datos
- * Incrementar cuando se realicen cambios en el esquema
- */
-const DATABASE_VERSION = 14;
+const DATABASE_VERSION = 15;
 
-/**
- * Inicializa la estructura de la base de datos
- * @param db Instancia de la base de datos proporcionada por SQLiteProvider
- */
 export async function initDatabase(db: SQLiteDatabase): Promise<void> {
-  // Obtener la versión actual de la base de datos
   const data = await db.getFirstAsync<{
     user_version: number;
   }>("PRAGMA user_version");
   const currentVersion = data?.user_version || 0;
 
-  // Si la versión es la actual, no es necesario hacer nada
   if (currentVersion >= DATABASE_VERSION) {
     console.log("La base de datos ya está en la versión más reciente");
     return;
   }
 
-  // Activamos el modo WAL y las claves foráneas
   await db.execAsync("PRAGMA journal_mode = WAL;");
   await db.execAsync("PRAGMA foreign_keys = ON;");
 
-  // Crear tablas en una transacción para garantizar la consistencia
   await db.withTransactionAsync(async () => {
-    // NOTA: En producción, NO eliminamos las tablas existentes para preservar los datos del usuario.
-    // Las migraciones de esquema deben manejarse con ALTER TABLE si es necesario.
-    // Solo en desarrollo (__DEV__) y con versiones antiguas se permite recrear las tablas.
     if (__DEV__ && currentVersion > 0 && currentVersion < DATABASE_VERSION) {
       console.log("⚠️ Modo desarrollo: Recreando tablas desde versión", currentVersion);
       await db.execAsync("DROP TABLE IF EXISTS transaction_labels");
@@ -47,13 +32,46 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       await db.execAsync("DROP TABLE IF EXISTS chat_messages");
       await db.execAsync("DROP TABLE IF EXISTS user_settings");
       await db.execAsync("DROP TABLE IF EXISTS widget_settings");
+      await db.execAsync("DROP TABLE IF EXISTS investments");
+      await db.execAsync("DROP TABLE IF EXISTS investment_history");
     } else if (!__DEV__ && currentVersion > 0 && currentVersion < DATABASE_VERSION) {
       console.log("📱 Producción: Actualizando esquema de base de datos de versión", currentVersion, "a", DATABASE_VERSION);
-      // Aquí se pueden agregar migraciones específicas con ALTER TABLE si es necesario
-      // Por ahora, las tablas se crean con CREATE TABLE IF NOT EXISTS más abajo
+      if (currentVersion < 15) {
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS investments (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            principal REAL NOT NULL,
+            annual_rate REAL NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'MXN',
+            wallet_id TEXT,
+            icon TEXT NOT NULL DEFAULT '📈',
+            color TEXT NOT NULL DEFAULT 'green',
+            start_date INTEGER NOT NULL,
+            current_value REAL NOT NULL,
+            last_compound_date INTEGER NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            notes TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE SET NULL
+          )
+        `);
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS investment_history (
+            id TEXT PRIMARY KEY,
+            investment_id TEXT NOT NULL,
+            date INTEGER NOT NULL,
+            value REAL NOT NULL,
+            FOREIGN KEY (investment_id) REFERENCES investments(id) ON DELETE CASCADE
+          )
+        `);
+        await db.execAsync(`
+          CREATE INDEX IF NOT EXISTS idx_investment_history_inv ON investment_history(investment_id, date)
+        `);
+      }
     }
 
-    // Tabla de wallets (billeteras)
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS wallets (
         id TEXT PRIMARY KEY,
@@ -76,7 +94,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
-    // Tabla de categorías
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS categories (
         id TEXT PRIMARY KEY,
@@ -91,7 +108,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
-    // Tabla de transacciones
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS transactions (
         id TEXT PRIMARY KEY,
@@ -102,13 +118,13 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         note TEXT,
         timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
         category_id TEXT,
-        to_wallet_id TEXT, -- Para transferencias entre wallets
-        objective_id TEXT, -- Para vincular transacciones con objetivos
+        to_wallet_id TEXT,
+        objective_id TEXT,
         is_subscription INTEGER NOT NULL DEFAULT 0,
         subscription_frequency TEXT CHECK(subscription_frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
-        next_payment_date INTEGER, -- Fecha del próximo pago para suscripciones
+        next_payment_date INTEGER,
         end_date INTEGER,
-        is_excluded INTEGER NOT NULL DEFAULT 0, -- 1 si debe excluirse de cálculos (suscripciones no pagadas)
+        is_excluded INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
         updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
         sync_status TEXT NOT NULL DEFAULT 'local',
@@ -119,7 +135,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
-    // Tabla de presupuestos
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS budgets (
         id TEXT PRIMARY KEY,
@@ -132,7 +147,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
-    // Tabla de límites de presupuesto por categoría
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS category_budget_limits (
         id TEXT PRIMARY KEY,
@@ -147,7 +161,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
-    // Tabla de objetivos financieros
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS objectives (
         id TEXT PRIMARY KEY,
@@ -165,7 +178,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
-    // Tabla para etiquetas
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS labels (
         id TEXT PRIMARY KEY,
@@ -177,7 +189,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
-    // Tabla para relacionar transacciones con etiquetas (many-to-many)
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS transaction_labels (
         transaction_id TEXT NOT NULL,
@@ -189,7 +200,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
-    // Tabla de configuración del usuario
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS user_settings (
         id TEXT PRIMARY KEY DEFAULT 'main',
@@ -201,7 +211,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
-    // Tabla de configuración de widgets
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS widget_settings (
         id TEXT PRIMARY KEY,
@@ -213,7 +222,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
-    // Tabla de tarjetas de crédito
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS credit_cards (
         id TEXT PRIMARY KEY,
@@ -234,7 +242,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
-    // Tabla de mensajes del chat con IA
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS chat_messages (
         id TEXT PRIMARY KEY,
@@ -247,13 +254,46 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       )
     `);
 
-    // Insertar configuración de usuario por defecto
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS investments (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        principal REAL NOT NULL,
+        annual_rate REAL NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'MXN',
+        wallet_id TEXT,
+        icon TEXT NOT NULL DEFAULT '📈',
+        color TEXT NOT NULL DEFAULT 'green',
+        start_date INTEGER NOT NULL,
+        current_value REAL NOT NULL,
+        last_compound_date INTEGER NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        notes TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE SET NULL
+      )
+    `);
+
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS investment_history (
+        id TEXT PRIMARY KEY,
+        investment_id TEXT NOT NULL,
+        date INTEGER NOT NULL,
+        value REAL NOT NULL,
+        FOREIGN KEY (investment_id) REFERENCES investments(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.execAsync(`
+      CREATE INDEX IF NOT EXISTS idx_investment_history_inv ON investment_history(investment_id, date)
+    `);
+
     await db.execAsync(`
       INSERT OR IGNORE INTO user_settings (id, default_currency, onboarding_completed)
       VALUES ('main', 'MXN', 0)
     `);
 
-    // Insertar widgets por defecto
     const defaultWidgets = [
       { type: 'greeting', position: 0 },
       { type: 'accounts', position: 1 },
@@ -271,7 +311,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       `);
     }
 
-    // Insertamos categorías predefinidas para gastos
     const expenseCategories = [
       { name: "Comida", icon: "🍔", color: "#FF6B6B" },
       { name: "Transporte", icon: "🚗", color: "#4ECDC4" },
@@ -284,7 +323,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       { name: "Otros Gastos", icon: "💭", color: "#FF9F1C" }
     ];
 
-    // Insertamos categorías predefinidas para ingresos
     const incomeCategories = [
       { name: "Salario", icon: "💰", color: "#4ECDC4" },
       { name: "Freelance", icon: "💻", color: "#FFD166" },
@@ -294,7 +332,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       { name: "Otros Ingresos", icon: "💭", color: "#4ECDC4" }
     ];
 
-    // Insertar categorías de gastos
     for (const category of expenseCategories) {
       await db.execAsync(`
         INSERT INTO categories (id, name, icon, color, is_custom, is_income) 
@@ -303,7 +340,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       `);
     }
 
-    // Insertar categorías de ingresos
     for (const category of incomeCategories) {
       await db.execAsync(`
         INSERT INTO categories (id, name, icon, color, is_custom, is_income)
@@ -312,14 +348,11 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       `);
     }
 
-    // Migrar tarjetas de crédito existentes a wallets tipo 'credit' (v12 -> v13)
-    // Solo ejecutar si hay tarjetas de crédito que no han sido migradas
     const creditCardCount = await db.getFirstAsync<{ count: number }>(
       "SELECT COUNT(*) as count FROM credit_cards WHERE 1=1"
     );
 
     if (creditCardCount && creditCardCount.count > 0) {
-      // Migrar todas las tarjetas de crédito a wallets
       await db.execAsync(`
         INSERT INTO wallets (
           id, name, balance, currency, icon, color, type,
@@ -352,8 +385,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       `);
     }
 
-    // Insertamos una wallet por defecto si la tabla está vacía
-    // Usar la divisa de user_settings (default_currency)
     await db.execAsync(`
       INSERT INTO wallets (id, name, balance, currency, icon, color)
       SELECT '${uuid.v4()}', 'Bank', 0.0, COALESCE((SELECT default_currency FROM user_settings WHERE id = 'main'), 'MXN'), '🏦', '#4CAF50'
@@ -361,10 +392,8 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
     `);
   });
 
-  // Actualizar la versión de la base de datos al finalizar
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
 
-  // Generar datos de muestra en modo desarrollo
   if (__DEV__) {
     const { generateAllSampleData } = await import('../devSampleData');
     await generateAllSampleData(db);

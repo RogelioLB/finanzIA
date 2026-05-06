@@ -48,8 +48,8 @@ export const registerBackgroundTask = async (): Promise<boolean> => {
     // El sistema operativo decide cuándo ejecutarla basándose en este intervalo
     await BackgroundFetch.registerTaskAsync(SUBSCRIPTION_TASK_NAME, {
       minimumInterval: 60 * 60 * 12, // 12 horas (recomendado para tareas diarias)
-      stopOnTerminate: false, // Continuar después de cerrar la app
-      startOnBoot: true, // Iniciar cuando el dispositivo se reinicia
+      stopOnTerminate: true,
+      startOnBoot: false,
     });
 
     console.log("[Background Task] Registrada exitosamente");

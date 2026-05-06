@@ -2,7 +2,6 @@ import { useWallets } from "@/contexts/WalletsContext";
 import { Wallet } from "@/lib/database/sqliteService";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -13,42 +12,44 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "@/theme/ThemeProvider";
+import { DesignIcon } from "@/components/ui/Icon";
+import { MXN } from "@/theme/format";
+
+function WalletIcon({ type, size, color }: { type?: string; size: number; color: string }) {
+  const props = { size, color, strokeWidth: 1.6 };
+  return type === 'credit' ? <DesignIcon.Card {...props} /> : <DesignIcon.Wallet {...props} />;
+}
 
 export default function WalletsScreen() {
+  const { theme, accent, density } = useTheme();
   const [defaultWalletId, setDefaultWalletId] = useState<string | null>(null);
-  
   const router = useRouter();
   const { wallets, isLoading, deleteWallet } = useWallets();
+  const compact = density === 'compact';
+  const pad = compact ? 16 : 20;
 
-  // Filtrar solo wallets regulares (excluir tarjetas de crédito)
   const regularWallets = wallets.filter(w => w.type !== 'credit');
 
-  // Establecer wallet por defecto cuando se cargan las wallets
   useEffect(() => {
     if (regularWallets.length > 0 && !defaultWalletId) {
       setDefaultWalletId(regularWallets[0].id);
     }
   }, [regularWallets, defaultWalletId]);
 
-  // Manejar eliminación de wallet
   const handleDeleteWallet = (wallet: Wallet) => {
     Alert.alert(
       "Eliminar cuenta",
       `¿Estás seguro de que quieres eliminar la cuenta "${wallet.name}"?`,
       [
-        {
-          text: "Cancelar",
-          style: "cancel",
-        },
+        { text: "Cancelar", style: "cancel" },
         {
           text: "Eliminar",
           style: "destructive",
           onPress: async () => {
             try {
               await deleteWallet(wallet.id);
-              // El contexto se actualiza automáticamente
             } catch (error) {
-              console.error('Error al eliminar wallet:', error);
               Alert.alert("Error", "No se pudo eliminar la cuenta");
             }
           },
@@ -57,47 +58,44 @@ export default function WalletsScreen() {
     );
   };
 
-  // Marcar como default
   const handleSetDefault = (walletId: string) => {
     setDefaultWalletId(walletId);
-    // Aquí puedes implementar la lógica para guardar la preferencia en AsyncStorage o base de datos
   };
 
-  // Navegar a detalles de wallet
   const handleWalletPress = (walletId: string) => {
     router.push(`/wallets/${walletId}`);
   };
 
-  // Renderizar cada wallet
   const renderWalletItem = ({ item }: { item: Wallet }) => {
     const isDefault = item.id === defaultWalletId;
-    
+    const bal = item.net_balance ?? item.balance;
+
     return (
-      <TouchableOpacity 
-        style={styles.walletCard}
+      <TouchableOpacity
+        style={[styles.walletCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
         onPress={() => handleWalletPress(item.id)}
         activeOpacity={0.7}
       >
         <View style={styles.walletHeader}>
           <View style={styles.walletInfo}>
-            <View style={[styles.walletIcon, { backgroundColor: item.color }]}>
-              <Text style={styles.walletIconText}>{item.icon}</Text>
+            <View style={[styles.walletIcon, { backgroundColor: item.color || accent }]}>
+              <WalletIcon type={item.type} size={22} color="#fff" />
             </View>
             <View style={styles.walletDetails}>
-              <Text style={styles.walletName}>{item.name}</Text>
-              <Text style={styles.walletBalance}>
-                ${(item.net_balance || item.balance).toFixed(2)}
+              <Text style={[styles.walletName, { color: theme.text }]}>{item.name}</Text>
+              <Text style={[styles.walletBalance, { color: theme.textSec }]}>
+                {MXN(bal)}
               </Text>
             </View>
           </View>
-          
+
           <View style={styles.walletActions}>
             {isDefault && (
-              <View style={styles.defaultBadge}>
-                <Text style={styles.defaultBadgeText}>Default</Text>
+              <View style={[styles.defaultBadge, { backgroundColor: `${accent}22` }]}>
+                <Text style={[styles.defaultBadgeText, { color: accent }]}>Principal</Text>
               </View>
             )}
-            
+
             <TouchableOpacity
               style={styles.actionButton}
               onPress={(e) => {
@@ -105,13 +103,13 @@ export default function WalletsScreen() {
                 handleSetDefault(item.id);
               }}
             >
-              <Ionicons 
-                name={isDefault ? "star" : "star-outline"} 
-                size={20} 
-                color={isDefault ? "#FFD700" : "#666"} 
+              <Ionicons
+                name={isDefault ? "star" : "star-outline"}
+                size={20}
+                color={isDefault ? accent : theme.textTer}
               />
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.actionButton}
               onPress={(e) => {
@@ -119,7 +117,7 @@ export default function WalletsScreen() {
                 handleDeleteWallet(item);
               }}
             >
-              <Ionicons name="trash-outline" size={20} color="#FF6B6B" />
+              <Ionicons name="trash-outline" size={20} color={theme.bad} />
             </TouchableOpacity>
           </View>
         </View>
@@ -128,43 +126,34 @@ export default function WalletsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#000" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.bg }]} edges={['top']}>
+      <View style={[styles.header, { paddingHorizontal: pad, borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <DesignIcon.Back size={22} color={theme.text} strokeWidth={1.7} />
         </TouchableOpacity>
-        
-        <Text style={styles.headerTitle}>Mis Cuentas</Text>
-        
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Mis Cuentas</Text>
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, { backgroundColor: accent, borderRadius: 10 }]}
           onPress={() => router.push("/wallets/add-wallet")}
         >
-          <Ionicons name="add" size={24} color="#7952FC" />
+          <Ionicons name="add" size={22} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      {/* Lista de wallets */}
       <View style={styles.content}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Cargando cuentas...</Text>
+            <Text style={[styles.loadingText, { color: theme.textSec }]}>Cargando cuentas...</Text>
           </View>
         ) : regularWallets.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="wallet-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>No tienes cuentas</Text>
-            <Text style={styles.emptySubtitle}>
+            <DesignIcon.Wallet size={64} color={theme.textTer} strokeWidth={1.4} />
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>No tienes cuentas</Text>
+            <Text style={[styles.emptySubtitle, { color: theme.textSec }]}>
               Añade tu primera cuenta para empezar
             </Text>
             <TouchableOpacity
-              style={styles.addFirstButton}
+              style={[styles.addFirstButton, { backgroundColor: accent }]}
               onPress={() => router.push("/wallets/add-wallet")}
             >
               <Text style={styles.addFirstButtonText}>Añadir cuenta</Text>
@@ -175,7 +164,7 @@ export default function WalletsScreen() {
             data={regularWallets}
             renderItem={renderWalletItem}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContainer}
+            contentContainerStyle={[styles.listContainer, { paddingHorizontal: pad, paddingVertical: 16, gap: 10 }]}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -185,136 +174,36 @@ export default function WalletsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
+  safeArea: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomWidth: 0.5,
   },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#000",
-  },
-  addButton: {
-    padding: 8,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    fontSize: 16,
-    color: "#666",
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#333",
-    marginTop: 16,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  addFirstButton: {
-    backgroundColor: "#7952FC",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  addFirstButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  listContainer: {
-    paddingVertical: 16,
-  },
-  walletCard: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#eee",
-  },
-  walletHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  walletInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  walletIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  walletIconText: {
-    fontSize: 20,
-    color: "white",
-  },
-  walletDetails: {
-    flex: 1,
-  },
-  walletName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-  },
-  walletBalance: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 2,
-  },
-  walletActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  defaultBadge: {
-    backgroundColor: "#FFD700",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  defaultBadgeText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: "#000",
-  },
-  actionButton: {
-    padding: 8,
-  },
+  backButton: { padding: 8 },
+  headerTitle: { fontSize: 17, fontWeight: "600" },
+  addButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  content: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingText: { fontSize: 15 },
+  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32 },
+  emptyTitle: { fontSize: 20, fontWeight: "600", marginTop: 16 },
+  emptySubtitle: { fontSize: 14, textAlign: "center", marginTop: 8, marginBottom: 24 },
+  addFirstButton: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+  addFirstButtonText: { color: "#fff", fontSize: 15, fontWeight: "600" },
+  listContainer: {},
+  walletCard: { borderRadius: 16, padding: 16, borderWidth: 1 },
+  walletHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  walletInfo: { flexDirection: "row", alignItems: "center", flex: 1, gap: 12 },
+  walletIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: "center", alignItems: "center" },
+  walletDetails: { flex: 1 },
+  walletName: { fontSize: 15, fontWeight: "600" },
+  walletBalance: { fontSize: 13, marginTop: 2 },
+  walletActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  defaultBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  defaultBadgeText: { fontSize: 10, fontWeight: "600" },
+  actionButton: { padding: 8 },
 });

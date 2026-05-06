@@ -1,21 +1,21 @@
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
-import {
-  calculateNextPaymentDate,
-  getSubscriptionById,
-  updateSubscription,
-} from "../database/subscriptionService";
-import { Subscription } from "../models/types";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Map de notificaciones programadas (ID de suscripción -> ID de notificación)
-const scheduledNotifications: Map<string, string> = new Map();
+const NOTIFICATION_QUEUE_KEY = 'finanzia.notification.queue';
 
-/**
- * Configura las notificaciones para la app
- */
+export interface QueuedNotification {
+  subscriptionId: string;
+  notificationId: string;
+  nextPaymentDate: number;
+}
+
+function clampDay(day: number): number {
+  return Math.min(day, 28);
+}
+
 export const setupNotifications = async () => {
-  // Configurar el comportamiento de las notificaciones
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -26,27 +26,39 @@ export const setupNotifications = async () => {
     }),
   });
 
-  // Solicitar permisos de notificaciones
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("subscription-reminders", {
       name: "Recordatorios de suscripciones",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#6C34E3", // Morado de la app
+      lightColor: "#6C34E3",
+    });
+    await Notifications.setNotificationChannelAsync("budget-alerts", {
+      name: "Alertas de presupuesto",
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#FF6B35",
+    });
+    await Notifications.setNotificationChannelAsync("investment-summary", {
+      name: "Resumen de inversiones",
+      importance: Notifications.AndroidImportance.DEFAULT,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#34C759",
+    });
+    await Notifications.setNotificationChannelAsync("general", {
+      name: "General",
+      importance: Notifications.AndroidImportance.DEFAULT,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#7952FC",
     });
   }
 
-  // Verificar y solicitar permisos
   return await registerForPushNotifications();
 };
 
-/**
- * Registra la aplicación para recibir notificaciones push
- */
 export const registerForPushNotifications = async () => {
   if (Device.isDevice) {
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
     if (existingStatus !== "granted") {
@@ -66,44 +78,42 @@ export const registerForPushNotifications = async () => {
   }
 };
 
-/**
- * Programa una notificación para una suscripción
- */
-export const scheduleSubscriptionNotification = async (
-  subscription: Subscription
-) => {
-  // Si la suscripción no tiene permitidas las notificaciones, no programamos nada
+export const scheduleSubscriptionNotification = async (subscription: any) => {
   if (!subscription.allow_notifications) {
     await cancelSubscriptionNotification(subscription.id);
     return null;
   }
 
-  // Cancelar cualquier notificación existente para esta suscripción
   await cancelSubscriptionNotification(subscription.id);
 
-  // Calcular tiempo para la notificación (1 día antes del próximo pago)
   const notificationDate = new Date(subscription.next_payment_date);
-  notificationDate.setDate(notificationDate.getDate() - 1); // Un día antes
+  notificationDate.setDate(notificationDate.getDate() - 1);
+  notificationDate.setHours(9, 0, 0, 0);
 
   let trigger: Notifications.NotificationTriggerInput;
+
   switch (subscription.frequency) {
-    case "monthly":
+    case "monthly": {
+      const day = clampDay(notificationDate.getDate());
       trigger = {
         type: Notifications.SchedulableTriggerInputTypes.MONTHLY,
-        day: notificationDate.getDate(),
+        day,
         hour: notificationDate.getHours(),
         minute: notificationDate.getMinutes(),
       };
       break;
-    case "yearly":
+    }
+    case "yearly": {
+      const day = clampDay(notificationDate.getDate());
       trigger = {
         type: Notifications.SchedulableTriggerInputTypes.YEARLY,
-        day: notificationDate.getDate(),
-        month: notificationDate.getMonth(),
+        day,
+        month: notificationDate.getMonth() + 1,
         hour: notificationDate.getHours(),
         minute: notificationDate.getMinutes(),
       };
       break;
+    }
     case "daily":
       trigger = {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
@@ -111,46 +121,36 @@ export const scheduleSubscriptionNotification = async (
         minute: notificationDate.getMinutes(),
       };
       break;
-    case "weekly":
-      // getDay() retorna 0-6 (0=domingo), pero Expo Notifications espera 1-7 (1=domingo)
-      // Fórmula: (getDay() + 1) convierte 0-6 a 1-7
-      const jsWeekday = notificationDate.getDay(); // 0-6
-      const expoWeekday = jsWeekday + 1; // 1-7
+    case "weekly": {
+      const jsWeekday = notificationDate.getDay();
+      const expoWeekday = jsWeekday === 0 ? 7 : jsWeekday;
+      const hour = notificationDate.getHours();
       trigger = {
         type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-        hour: notificationDate.getHours() || 9, // Fallback a las 9am si no hay hora
-        minute: notificationDate.getMinutes() || 0,
-        weekday: Math.max(1, Math.min(7, expoWeekday)), // Asegurar rango 1-7
+        hour: hour === 0 ? 9 : hour,
+        minute: notificationDate.getMinutes(),
+        weekday: Math.max(1, Math.min(7, expoWeekday)),
       };
       break;
-    default:
-      trigger = {
-        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: notificationDate.getTime() / 1000,
-        repeats: true,
-      };
+    }
+    default: {
+      trigger = null;
       break;
+    }
   }
 
-  console.log(trigger);
-
   try {
-    // Programar la notificación
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
         title: `Recordatorio: ${subscription.name}`,
-        body: `Tu suscripción de ${subscription.amount.toFixed(2)} vence mañana`,
-        data: { subscriptionId: subscription.id },
+        body: `Tu suscripción de ${subscription.amount.toFixed(2)} MXN vence mañana`,
+        data: { subscriptionId: subscription.id, type: 'subscription-reminder' },
       },
       trigger,
     });
 
-    // Guardar el ID de la notificación para poder cancelarla después
-    scheduledNotifications.set(subscription.id, notificationId);
-    console.log(
-      `Notificación programada para ${subscription.name} (ID: ${notificationId})`
-    );
-
+    await addToNotificationQueue(subscription.id, notificationId, subscription.next_payment_date);
+    console.log(`Notificación programada para ${subscription.name} (ID: ${notificationId})`);
     return notificationId;
   } catch (error) {
     console.error("Error al programar notificación:", error);
@@ -158,36 +158,26 @@ export const scheduleSubscriptionNotification = async (
   }
 };
 
-/**
- * Cancela una notificación programada para una suscripción
- */
-export const cancelSubscriptionNotification = async (
-  subscriptionId: string
-) => {
-  const notificationId = scheduledNotifications.get(subscriptionId);
+export const cancelSubscriptionNotification = async (subscriptionId: string) => {
+  try {
+    const queue = await getNotificationQueue();
+    const entry = queue.find(q => q.subscriptionId === subscriptionId);
 
-  if (notificationId) {
-    try {
-      await Notifications.cancelScheduledNotificationAsync(notificationId);
-      scheduledNotifications.delete(subscriptionId);
-      console.log(`Notificación cancelada para suscripción ${subscriptionId}`);
-      return true;
-    } catch (error) {
-      console.error("Error al cancelar notificación:", error);
-      return false;
+    if (entry) {
+      await Notifications.cancelScheduledNotificationAsync(entry.notificationId);
+      await removeFromNotificationQueue(subscriptionId);
     }
+    return true;
+  } catch (error) {
+    console.error("Error al cancelar notificación:", error);
+    return false;
   }
-
-  return false;
 };
 
-/**
- * Cancela todas las notificaciones programadas
- */
 export const cancelAllSubscriptionNotifications = async () => {
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
-    scheduledNotifications.clear();
+    await clearNotificationQueue();
     console.log("Todas las notificaciones canceladas");
     return true;
   } catch (error) {
@@ -196,30 +186,11 @@ export const cancelAllSubscriptionNotifications = async () => {
   }
 };
 
-/**
- * Reprograma una notificación para el siguiente pago
- * Se llama automáticamente cuando se recibe una notificación o el usuario interactúa con ella
- * NOTA: Esta función está deprecada ya que ahora el procesamiento automático
- * maneja la actualización de fechas. Se mantiene por compatibilidad.
- */
-export const rescheduleForNextPayment = async (
-  subscriptionId: string
-): Promise<boolean> => {
-  console.log(
-    `[rescheduleForNextPayment] Función deprecada llamada para ${subscriptionId}`
-  );
-  console.log(
-    "La actualización de fechas ahora se maneja automáticamente por el procesador de suscripciones"
-  );
+export const rescheduleForNextPayment = async (subscriptionId: string): Promise<boolean> => {
+  console.log(`[rescheduleForNextPayment] DEPRECATED - Subscription processor handles this for ${subscriptionId}`);
   return true;
 };
 
-// ==================== FUNCIONES DE TESTING ====================
-
-/**
- * Envía una notificación de prueba inmediatamente
- * Útil para verificar que el sistema de notificaciones funciona correctamente
- */
 export const sendTestNotification = async (
   title: string = "Notificación de Prueba",
   body: string = "Esta es una notificación de prueba del sistema de suscripciones"
@@ -231,7 +202,7 @@ export const sendTestNotification = async (
         body,
         data: { type: "test-notification" },
       },
-      trigger: null, // Enviar inmediatamente
+      trigger: null,
     });
     console.log(`Notificación de prueba enviada (ID: ${notificationId})`);
     return notificationId;
@@ -241,10 +212,6 @@ export const sendTestNotification = async (
   }
 };
 
-/**
- * Programa una notificación de prueba con un delay específico (en segundos)
- * Útil para probar notificaciones programadas sin esperar días
- */
 export const scheduleTestNotificationWithDelay = async (
   delaySeconds: number,
   title: string = "Recordatorio de Prueba",
@@ -252,20 +219,14 @@ export const scheduleTestNotificationWithDelay = async (
 ): Promise<string | null> => {
   try {
     const notificationId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title,
-        body,
-        data: { type: "test-notification-delayed" },
-      },
+      content: { title, body, data: { type: "test-notification-delayed" } },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
         seconds: delaySeconds,
         repeats: false,
       },
     });
-    console.log(
-      `Notificación de prueba programada para ${delaySeconds} segundos (ID: ${notificationId})`
-    );
+    console.log(`Notificación de prueba programada para ${delaySeconds} segundos (ID: ${notificationId})`);
     return notificationId;
   } catch (error) {
     console.error("Error programando notificación de prueba:", error);
@@ -273,10 +234,6 @@ export const scheduleTestNotificationWithDelay = async (
   }
 };
 
-/**
- * Simula una notificación de suscripción
- * Permite probar el flujo completo sin modificar datos reales
- */
 export const simulateSubscriptionNotification = async (
   subscriptionName: string,
   amount: number
@@ -285,18 +242,12 @@ export const simulateSubscriptionNotification = async (
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
         title: `Recordatorio: ${subscriptionName}`,
-        body: `Tu suscripción de $${amount.toFixed(2)} vence mañana`,
-        data: {
-          type: "subscription-reminder-test",
-          subscriptionName,
-          amount,
-        },
+        body: `Tu suscripción de $${amount.toFixed(2)} MXN vence mañana`,
+        data: { type: "subscription-reminder-test", subscriptionName, amount },
       },
-      trigger: null, // Enviar inmediatamente
+      trigger: null,
     });
-    console.log(
-      `Notificación de suscripción simulada enviada (ID: ${notificationId})`
-    );
+    console.log(`Notificación de suscripción simulada enviada (ID: ${notificationId})`);
     return notificationId;
   } catch (error) {
     console.error("Error simulando notificación de suscripción:", error);
@@ -304,13 +255,7 @@ export const simulateSubscriptionNotification = async (
   }
 };
 
-/**
- * Lista todas las notificaciones programadas
- * Útil para depuración
- */
-export const listScheduledNotifications = async (): Promise<
-  Notifications.NotificationRequest[]
-> => {
+export const listScheduledNotifications = async (): Promise<Notifications.NotificationRequest[]> => {
   try {
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     console.log(`Notificaciones programadas: ${scheduled.length}`);
@@ -322,4 +267,93 @@ export const listScheduledNotifications = async (): Promise<
     console.error("Error listando notificaciones programadas:", error);
     return [];
   }
+};
+
+export const sendImmediateNotification = async (params: {
+  title: string;
+  body: string;
+  data?: any;
+  channel?: 'subscription-reminders' | 'budget-alerts' | 'investment-summary' | 'general';
+}) => {
+  try {
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: params.title,
+        body: params.body,
+        data: { ...params.data, type: params.channel ?? 'general' },
+      },
+      trigger: null,
+    });
+    return notificationId;
+  } catch (error) {
+    console.error("[sendImmediateNotification] Error:", error);
+    return null;
+  }
+};
+
+async function getNotificationQueue(): Promise<QueuedNotification[]> {
+  try {
+    const raw = await AsyncStorage.getItem(NOTIFICATION_QUEUE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveNotificationQueue(queue: QueuedNotification[]): Promise<void> {
+  await AsyncStorage.setItem(NOTIFICATION_QUEUE_KEY, JSON.stringify(queue));
+}
+
+async function addToNotificationQueue(subscriptionId: string, notificationId: string, nextPaymentDate: number): Promise<void> {
+  const queue = await getNotificationQueue();
+  const filtered = queue.filter(q => q.subscriptionId !== subscriptionId);
+  filtered.push({ subscriptionId, notificationId, nextPaymentDate });
+  await saveNotificationQueue(filtered);
+}
+
+async function removeFromNotificationQueue(subscriptionId: string): Promise<void> {
+  const queue = await getNotificationQueue();
+  const filtered = queue.filter(q => q.subscriptionId !== subscriptionId);
+  await saveNotificationQueue(filtered);
+}
+
+async function clearNotificationQueue(): Promise<void> {
+  await AsyncStorage.removeItem(NOTIFICATION_QUEUE_KEY);
+}
+
+export { getNotificationQueue, addToNotificationQueue, removeFromNotificationQueue, clearNotificationQueue };
+
+export const isNotificationScheduled = async (subscriptionId: string): Promise<boolean> => {
+  const queue = await getNotificationQueue();
+  const entry = queue.find(q => q.subscriptionId === subscriptionId);
+  if (!entry) return false;
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  return scheduled.some(s => s.identifier === entry.notificationId);
+};
+
+export const syncNotificationQueue = async (): Promise<void> => {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const queue = await getNotificationQueue();
+
+  const scheduledIds = new Set(scheduled.map(s => s.identifier));
+  const cleaned = queue.filter(q => scheduledIds.has(q.notificationId));
+  await saveNotificationQueue(cleaned);
+};
+
+export const needsReschedule = async (subscriptionId: string, nextPaymentDate: number): Promise<boolean> => {
+  const startOfTomorrow = new Date();
+  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+  startOfTomorrow.setHours(0, 0, 0, 0);
+  if (nextPaymentDate < startOfTomorrow.getTime()) return false;
+
+  const queue = await getNotificationQueue();
+  const entry = queue.find(q => q.subscriptionId === subscriptionId);
+
+  if (!entry) return true;
+  if (entry.nextPaymentDate !== nextPaymentDate) return true;
+
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const stillExists = scheduled.some(s => s.identifier === entry.notificationId);
+
+  return !stillExists;
 };

@@ -1,98 +1,52 @@
-import { AnimatedTabButton } from "@/components/AnimatedTabButton";
-import { triggerMediumTap } from "@/hooks/useHaptics";
-import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { TabList, Tabs, TabSlot, TabTrigger } from "expo-router/ui";
-import { TouchableHighlight, View, Keyboard } from "react-native";
+import { Keyboard, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
+import AppTabBar from "@/components/navigation/AppTabBar";
+import QuickExpenseSheet from "@/components/sheets/QuickExpenseSheet";
+import { ToastContainer } from "@/components/ui/Toast";
 
-// Defining the layout of the custom tab navigator
 export default function Layout() {
   const pathname = usePathname();
   const router = useRouter();
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener(
-      "keyboardDidShow",
-      () => {
-        setKeyboardVisible(true);
-      }
-    );
-    const keyboardDidHideListener = Keyboard.addListener(
-      "keyboardDidHide",
-      () => {
-        setKeyboardVisible(false);
-      }
-    );
-
+    const keyboardDidShow = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const keyboardDidHide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
     return () => {
-      keyboardDidShowListener.remove();
-      keyboardDidHideListener.remove();
+      keyboardDidShow.remove();
+      keyboardDidHide.remove();
     };
   }, []);
 
-  // Ocultar tab bar cuando el teclado está visible en ai-plan
   const shouldHideTabBar = isKeyboardVisible && pathname === "/ai-plan";
 
-  return (
-    <Tabs>
-      <View className="flex-1 relative">
-        <TabSlot />
-        {pathname !== "/ai-plan" && (
-          <TouchableHighlight
-            onPress={() => {
-              triggerMediumTap();
-              // Using type assertion to bypass type checking for external route
-              router.navigate("/add-transaction");
-            }}
-            className="absolute bottom-10 right-8 z-10 bg-indigo-800 rounded-md p-3 "
-          >
-            <Ionicons name="add" size={24} color="white" />
-          </TouchableHighlight>
-        )}
-      </View>
-      {!shouldHideTabBar && (
-        <SafeAreaView edges={["bottom"]}>
-          <View
-            className={`flex-row justify-around items-center py-4 px-4 bg-[#7952FC] rounded-t-xl`}
-          >
-            <AnimatedTabButton
-              name="Inicio"
-              icon="home"
-              href="/"
-              isActive={pathname === "/"}
-            />
-            <AnimatedTabButton
-              name="Transacciones"
-              customIcon="cash-outline"
-              href="/history"
-              isActive={pathname === "/history" || pathname === "/history/index"}
-            />
-            <AnimatedTabButton
-              name="AI Plan"
-              icon="ai-plan"
-              href="/ai-plan"
-              isActive={pathname === "/ai-plan"}
-            />
-            <AnimatedTabButton
-              name="Más"
-              customIcon="ellipsis-horizontal"
-              href="/more"
-              isActive={pathname === "/more"}
-              id="more"
-            />
-          </View>
-        </SafeAreaView>
-      )}
+  const openSheet = () => setSheetOpen(true);
 
-      <TabList style={{ display: "none" }}>
-        <TabTrigger name="inicio" href="/" />
-        <TabTrigger name="transacciones" href="/history" />
-        <TabTrigger name="ai plan" href="/ai-plan" />
-        <TabTrigger name="more" href="/more" />
-      </TabList>
-    </Tabs>
+  return (
+    <View style={{ flex: 1 }}>
+      <Tabs>
+        <View className="flex-1 relative">
+          <TabSlot />
+        </View>
+        {!shouldHideTabBar && (
+          <SafeAreaView edges={["bottom"]}>
+            <AppTabBar onFabPress={openSheet} />
+          </SafeAreaView>
+        )}
+
+        <TabList style={{ display: "none" }}>
+          <TabTrigger name="inicio" href="/" />
+          <TabTrigger name="expenses" href="/expenses" />
+          <TabTrigger name="debts" href="/debts" />
+          <TabTrigger name="more" href="/more" />
+        </TabList>
+      </Tabs>
+      <QuickExpenseSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} />
+      <ToastContainer />
+    </View>
   );
 }

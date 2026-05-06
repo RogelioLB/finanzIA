@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import * as Toast from "toastify-react-native";
+import { Toast } from "@/components/ui/Toast";
 import { useObjectives } from "@/contexts/ObjectivesContext";
 
 interface ActionButtonProps {

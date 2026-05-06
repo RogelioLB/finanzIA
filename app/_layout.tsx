@@ -1,7 +1,6 @@
 import {
   DarkTheme,
   DefaultTheme,
-  ThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
@@ -15,6 +14,7 @@ import { AddTransactionProvider } from "@/contexts/AddTransactionContext";
 import { CategoriesProvider } from "@/contexts/CategoriesContext";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { CreditCardsProvider } from "@/contexts/CreditCardsContext";
+import { InvestmentsProvider } from "@/contexts/InvestmentsContext";
 import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { ObjectivesProvider } from "@/contexts/ObjectivesContext";
 import { SubscriptionsProvider } from "@/contexts/SubscriptionsContext";
@@ -24,46 +24,37 @@ import { WalletsProvider } from "@/contexts/WalletsContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useSubscriptionMonitor } from "@/hooks/useSubscriptionMonitor";
 import { initDatabase } from "@/lib/database/initDatabase";
+import { ThemeProvider } from "@/theme/ThemeProvider";
 import * as NavigationBar from "expo-navigation-bar";
 import * as Updates from "expo-updates";
 import { SQLiteProvider } from "expo-sqlite";
 import { useEffect } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { ToastContainer } from "@/components/ui/Toast";
 
-/**
- * Component that initializes subscription monitoring
- * Must be used inside SQLiteProvider
- */
 function SubscriptionMonitorInit() {
   useSubscriptionMonitor();
   return null;
 }
 
-/**
- * Navigation guard that handles onboarding redirect
- * Must be used inside UserProvider
- */
 function NavigationGuard({ children }: { children: React.ReactNode }) {
   const { isOnboardingComplete, isLoading } = useUser();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoading) return; // Wait for user settings to load
+    if (isLoading) return;
 
     const inOnboarding = segments[0] === "onboarding";
 
     if (!isOnboardingComplete && !inOnboarding) {
-      // Redirect to onboarding if not completed and not already there
       router.replace("/onboarding");
     } else if (isOnboardingComplete && inOnboarding) {
-      // Redirect to home if onboarding is completed but user is on onboarding screen
       router.replace("/");
     }
   }, [isOnboardingComplete, isLoading, segments, router]);
 
-  // Show loading screen while checking onboarding status
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8F9FA" }}>
@@ -80,16 +71,15 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (Platform.OS === "android") {
-      NavigationBar.setBackgroundColorAsync("#7952FC");
+      NavigationBar.setBackgroundColorAsync("#0A0A0A");
       NavigationBar.setButtonStyleAsync("light");
       NavigationBar.setPositionAsync("absolute");
     }
   }, []);
 
-  // Verificar y aplicar actualizaciones OTA
   useEffect(() => {
     async function checkForUpdates() {
-      if (__DEV__) return; // No verificar en desarrollo
+      if (__DEV__) return;
 
       try {
         const update = await Updates.checkForUpdateAsync();
@@ -118,111 +108,131 @@ export default function RootLayout() {
       <SQLiteProvider databaseName="financeapp.db" onInit={initDatabase}>
         <SubscriptionMonitorInit />
         <MenuProvider>
-          <UserProvider>
-            <WalletsProvider>
-              <CategoriesProvider>
-                <TransactionsProvider>
-                  <SubscriptionsProvider>
-                    <NotificationsProvider>
-                      <ObjectivesProvider>
-                        <CreditCardsProvider>
-                          <ChatProvider>
-                            <AddTransactionProvider>
-                        <ThemeProvider
-                          value={colorScheme !== "dark" ? DarkTheme : DefaultTheme}
-                        >
-                          <GestureHandlerRootView>
-                            <NavigationGuard>
-                              <Stack
-                                screenOptions={{
-                                  animation: "slide_from_right",
-                                  animationDuration: 300,
-                                  headerShown: false,
-                                }}
-                              >
-                                <Stack.Screen
-                                  name="(tabs)"
-                                  options={{
-                                    headerShown: false,
-                                    animationDuration: 250,
-                                  }}
-                                />
-                                <Stack.Screen
-                                  name="onboarding"
-                                  options={{
-                                    headerShown: false,
-                                    animation: "fade",
-                                    gestureEnabled: false,
-                                  }}
-                                />
-                                <Stack.Screen
-                                  name="accounts"
-                                  options={{
-                                    title: "Cuentas",
-                                    headerShown: false,
-                                    animation: "fade_from_bottom",
-                                    animationDuration: 250,
-                                  }}
-                                />
-                                <Stack.Screen
-                                  name="add-transaction"
-                                  options={{
-                                    headerShown: false,
-                                    animationDuration: 250,
-                                  }}
-                                />
-                                <Stack.Screen
-                                  name="subscriptions"
-                                  options={{
-                                    title: "Suscripciones",
-                                    headerShown: false,
-                                    animation: "fade_from_bottom",
-                                    animationDuration: 250,
-                                  }}
-                                />
-                                <Stack.Screen
-                                  name="objectives"
-                                  options={{
-                                    title: "Objetivos",
-                                    headerShown: false,
-                                    animation: "fade_from_bottom",
-                                    animationDuration: 250,
-                                  }}
-                                />
-                                <Stack.Screen
-                                  name="credit-cards"
-                                  options={{
-                                    title: "Tarjetas de Crédito",
-                                    headerShown: false,
-                                    animation: "fade_from_bottom",
-                                    animationDuration: 250,
-                                  }}
-                                />
-                                <Stack.Screen
-                                  name="settings"
-                                  options={{
-                                    title: "Configuración",
-                                    headerShown: false,
-                                    animation: "fade_from_bottom",
-                                    animationDuration: 250,
-                                  }}
-                                />
-                                <Stack.Screen name="+not-found" />
-                              </Stack>
-                            </NavigationGuard>
-                            <StatusBar style="dark" />
-                          </GestureHandlerRootView>
-                        </ThemeProvider>
-                            </AddTransactionProvider>
-                          </ChatProvider>
-                        </CreditCardsProvider>
-                      </ObjectivesProvider>
-                    </NotificationsProvider>
-                  </SubscriptionsProvider>
-                </TransactionsProvider>
-              </CategoriesProvider>
-            </WalletsProvider>
-          </UserProvider>
+          <ThemeProvider>
+            <UserProvider>
+              <WalletsProvider>
+                <CategoriesProvider>
+                  <TransactionsProvider>
+                    <InvestmentsProvider>
+                      <SubscriptionsProvider>
+                      <NotificationsProvider>
+                        <ObjectivesProvider>
+                          <CreditCardsProvider>
+                            <ChatProvider>
+                              <AddTransactionProvider>
+                                <GestureHandlerRootView>
+                                  <NavigationGuard>
+                                    <View style={{ flex: 1 }}>
+                                      <Stack
+                                        screenOptions={{
+                                          animation: "slide_from_right",
+                                          animationDuration: 300,
+                                          headerShown: false,
+                                        }}
+                                      >
+                                        <Stack.Screen
+                                          name="(tabs)"
+                                          options={{
+                                            headerShown: false,
+                                            animationDuration: 250,
+                                          }}
+                                        />
+                                        <Stack.Screen
+                                          name="onboarding"
+                                          options={{
+                                            headerShown: false,
+                                            animation: "fade",
+                                            gestureEnabled: false,
+                                          }}
+                                        />
+                                        <Stack.Screen
+                                          name="accounts"
+                                          options={{
+                                            title: "Cuentas",
+                                            headerShown: false,
+                                            animation: "fade_from_bottom",
+                                            animationDuration: 250,
+                                          }}
+                                        />
+                                        <Stack.Screen
+                                          name="add-transaction"
+                                          options={{
+                                            headerShown: false,
+                                            animationDuration: 250,
+                                          }}
+                                        />
+                                        <Stack.Screen
+                                          name="subscriptions"
+                                          options={{
+                                            title: "Suscripciones",
+                                            headerShown: false,
+                                            animation: "fade_from_bottom",
+                                            animationDuration: 250,
+                                          }}
+                                        />
+                                        <Stack.Screen
+                                          name="objectives"
+                                          options={{
+                                            title: "Objetivos",
+                                            headerShown: false,
+                                            animation: "fade_from_bottom",
+                                            animationDuration: 250,
+                                          }}
+                                        />
+                                        <Stack.Screen
+                                          name="credit-cards"
+                                          options={{
+                                            title: "Tarjetas de Crédito",
+                                            headerShown: false,
+                                            animation: "fade_from_bottom",
+                                            animationDuration: 250,
+                                          }}
+                                        />
+                                        <Stack.Screen
+                                          name="settings"
+                                          options={{
+                                            title: "Configuración",
+                                            headerShown: false,
+                                            animation: "fade_from_bottom",
+                                            animationDuration: 250,
+                                          }}
+                                        />
+                                        <Stack.Screen
+                                          name="investments"
+                                          options={{
+                                            title: "Inversiones",
+                                            headerShown: false,
+                                            animation: "fade_from_bottom",
+                                            animationDuration: 250,
+                                          }}
+                                        />
+                                        <Stack.Screen
+                                          name="debts"
+                                          options={{
+                                            title: "Deudas",
+                                            headerShown: false,
+                                            animation: "fade_from_bottom",
+                                            animationDuration: 250,
+                                          }}
+                                        />
+                                        <Stack.Screen name="+not-found" />
+                                      </Stack>
+                                    </View>
+                                  </NavigationGuard>
+                                  <StatusBar style="auto" />
+                                </GestureHandlerRootView>
+                              </AddTransactionProvider>
+                            </ChatProvider>
+                          </CreditCardsProvider>
+                        </ObjectivesProvider>
+                      </NotificationsProvider>
+                      </SubscriptionsProvider>
+                    </InvestmentsProvider>
+                  </TransactionsProvider>
+                </CategoriesProvider>
+              </WalletsProvider>
+            </UserProvider>
+          </ThemeProvider>
         </MenuProvider>
       </SQLiteProvider>
     </SafeAreaProvider>

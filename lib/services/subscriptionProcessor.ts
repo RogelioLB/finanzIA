@@ -1,10 +1,8 @@
 import { SQLiteDatabase } from "expo-sqlite";
-import * as Notifications from "expo-notifications";
 import {
   calculateNextPaymentDate,
   createSubscriptionTransaction,
   getSubscriptionsDueToday,
-  getSubscriptionsDueTomorrow,
   updateSubscription,
 } from "../database/subscriptionService";
 
@@ -48,13 +46,6 @@ export const processSubscriptionsDueToday = async (
           next_payment_date: nextPaymentDate,
         });
 
-        // 4. Enviar notificación de confirmación
-        await sendTransactionCreatedNotification(
-          subscription.name,
-          subscription.amount,
-          subscription.type
-        );
-
         processed++;
         console.log(`✓ Procesada suscripción: ${subscription.name}`);
       } catch (error) {
@@ -80,81 +71,11 @@ export const processSubscriptionsDueToday = async (
  * Envía notificaciones de recordatorio para suscripciones que vencen mañana
  */
 export const sendReminderNotifications = async (
-  db: SQLiteDatabase
+  _db: SQLiteDatabase
 ): Promise<number> => {
-  try {
-    const subscriptionsDueTomorrow = await getSubscriptionsDueTomorrow(db);
-    console.log(
-      `Enviando ${subscriptionsDueTomorrow.length} notificaciones de recordatorio`
-    );
-
-    let sent = 0;
-
-    for (const subscription of subscriptionsDueTomorrow) {
-      try {
-        if (subscription.allow_notifications) {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: `Recordatorio: ${subscription.name}`,
-              body: `Tu suscripción de $${subscription.amount.toFixed(2)} vence mañana`,
-              data: {
-                type: "subscription-reminder",
-                subscriptionId: subscription.id,
-              },
-            },
-            trigger: null, // Enviar inmediatamente
-          });
-          sent++;
-        }
-      } catch (error) {
-        console.error(
-          `Error enviando notificación para ${subscription.name}:`,
-          error
-        );
-      }
-    }
-
-    console.log(`${sent} notificaciones de recordatorio enviadas`);
-    return sent;
-  } catch (error) {
-    console.error("Error en sendReminderNotifications:", error);
-    return 0;
-  }
-};
-
-/**
- * Envía una notificación cuando se crea automáticamente una transacción
- */
-export const sendTransactionCreatedNotification = async (
-  subscriptionName: string,
-  amount: number,
-  type: "income" | "expense" | "transfer" = "expense"
-): Promise<boolean> => {
-  try {
-    const isIncome = type === "income";
-    const title = isIncome ? "Ingreso registrado" : "Pago registrado";
-    const body = isIncome
-      ? `Se ha registrado el ingreso de ${subscriptionName} por $${amount.toFixed(2)}`
-      : `Se ha registrado el pago de ${subscriptionName} por $${amount.toFixed(2)}`;
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title,
-        body,
-        data: {
-          type: "subscription-transaction-created",
-          subscriptionName,
-          amount,
-          transactionType: type,
-        },
-      },
-      trigger: null, // Enviar inmediatamente
-    });
-    return true;
-  } catch (error) {
-    console.error("Error enviando notificación de transacción creada:", error);
-    return false;
-  }
+  // Los recordatorios se manejan vía scheduled notifications en foreground (NotificationsContext).
+  // No se envían notificaciones inmediatas desde background.
+  return 0;
 };
 
 /**
@@ -166,14 +87,9 @@ export const executeSubscriptionTasks = async (
 ): Promise<void> => {
   console.log("=== Iniciando procesamiento de suscripciones ===");
 
-  // 1. Procesar suscripciones que vencen hoy
   const { processed, errors } = await processSubscriptionsDueToday(db);
-
-  // 2. Enviar recordatorios para suscripciones que vencen mañana
-  const reminders = await sendReminderNotifications(db);
 
   console.log("=== Procesamiento completado ===");
   console.log(`Transacciones creadas: ${processed}`);
   console.log(`Errores: ${errors}`);
-  console.log(`Recordatorios enviados: ${reminders}`);
 };

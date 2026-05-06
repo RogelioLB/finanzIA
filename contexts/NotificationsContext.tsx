@@ -8,26 +8,22 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { AppState, AppStateStatus } from "react-native";
 import { Subscription } from "../lib/models/types";
 import {
   cancelAllSubscriptionNotifications,
   cancelSubscriptionNotification,
   listScheduledNotifications,
-  rescheduleForNextPayment,
   scheduleSubscriptionNotification,
   sendTestNotification,
   setupNotifications,
   simulateSubscriptionNotification,
-} from "../lib/services/notificationService";
-import {
+  syncNotificationQueue,
   addToNotificationQueue,
-  clearNotificationQueue,
-  getNotificationQueue,
+  removeFromNotificationQueue,
   isNotificationScheduled,
   needsReschedule,
-  removeFromNotificationQueue,
-  syncNotificationQueue,
-} from "../lib/services/notificationQueueService";
+} from "../lib/services/notificationService";
 import { useSubscriptions } from "./SubscriptionsContext";
 
 type NotificationsContextType = {
@@ -36,92 +32,66 @@ type NotificationsContextType = {
   scheduleNotification: (subscription: Subscription) => Promise<string | null>;
   cancelNotification: (subscriptionId: string) => Promise<boolean>;
   cancelAllNotifications: () => Promise<boolean>;
-  // Funciones de testing (solo en __DEV__)
   sendTestNotification: () => Promise<string | null>;
   simulateSubscriptionNotification: (name: string, amount: number) => Promise<string | null>;
   listScheduledNotifications: () => Promise<Notifications.NotificationRequest[]>;
 };
 
-const NotificationsContext = createContext<
-  NotificationsContextType | undefined
->(undefined);
+const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
 
-export const NotificationsProvider = ({
-  children,
-}: {
-  children: ReactNode;
-}) => {
+export const NotificationsProvider = ({ children }: { children: ReactNode }) => {
   const [permissionsGranted, setPermissionsGranted] = useState<boolean>(false);
   const { subscriptions } = useSubscriptions();
-
-  // Usar refs para evitar re-renders innecesarios
-  const subscriptionsRef = useRef<Subscription[]>([]);
-  const hasScheduledRef = useRef(false);
   const isSchedulingRef = useRef(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Inicializar el sistema de notificaciones
   useEffect(() => {
     const initNotifications = async () => {
       const granted = await setupNotifications();
       setPermissionsGranted(granted);
+      await syncNotificationQueue();
 
-      // Configurar listener para cuando se recibe una notificación
-      const subscription = Notifications.addNotificationReceivedListener(
-        async (notification) => {
-          console.log("¡Notificación recibida!", notification);
+      const receivedSub = Notifications.addNotificationReceivedListener(async (notification) => {
+        console.log("¡Notificación recibida!", notification);
+      });
 
-          // Comprobar si es una notificación de suscripción
-          const subscriptionId =
-            notification.request.content.data?.subscriptionId;
-          if (subscriptionId && typeof subscriptionId === "string") {
-            console.log(
-              "Notificación de suscripción recibida. ID:",
-              subscriptionId
-            );
+      const responseSub = Notifications.addNotificationResponseReceivedListener(async (response) => {
+        console.log("¡Usuario interactuó con notificación!", response);
+      });
 
-            // Reprogramar para el siguiente período de pago
-            await rescheduleForNextPayment(subscriptionId);
-          }
-        }
-      );
-
-      // Configurar listener para cuando se interactúa con una notificación
-      const responseSubscription =
-        Notifications.addNotificationResponseReceivedListener(
-          async (response) => {
-            console.log("¡Usuario interactuó con notificación!", response);
-
-            // Comprobar si es una notificación de suscripción
-            const subscriptionId =
-              response.notification.request.content.data?.subscriptionId;
-            if (subscriptionId && typeof subscriptionId === "string") {
-              console.log(
-                "Interacción con notificación de suscripción. ID:",
-                subscriptionId
-              );
-
-              // Reprogramar para el siguiente período de pago
-              await rescheduleForNextPayment(subscriptionId);
-
-              // Aquí se podría agregar navegación a la pantalla de suscripción
-              console.log("Navegar a suscripción:", subscriptionId);
-            }
-          }
-        );
-
-      // Limpiar listeners al desmontar
       return () => {
-        subscription.remove();
-        responseSubscription.remove();
+        receivedSub.remove();
+        responseSub.remove();
       };
     };
 
     initNotifications();
   }, []);
 
-  // Función para programar notificaciones (memoizada) - usa sistema de colas
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        const recheck = async () => {
+          console.log("[Notifications] App foregrounded - rechecking permissions and sync");
+          const granted = await setupNotifications();
+          setPermissionsGranted(granted);
+          await syncNotificationQueue();
+        };
+        recheck();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
+  // Ref para leer subscriptions sin incluirlas en las deps del useCallback
+  const subscriptionsRef = useRef(subscriptions);
+  subscriptionsRef.current = subscriptions;
+
   const scheduleAllNotifications = useCallback(async () => {
-    if (!permissionsGranted || subscriptions.length === 0 || isSchedulingRef.current) {
+    const subs = subscriptionsRef.current;
+    if (!permissionsGranted || subs.length === 0 || isSchedulingRef.current) {
       return;
     }
 
@@ -129,34 +99,28 @@ export const NotificationsProvider = ({
     console.log("Verificando notificaciones para suscripciones...");
 
     try {
-      // Sincronizar cola con notificaciones realmente programadas
       await syncNotificationQueue();
 
-      const subsWithNotifications = subscriptions.filter(s => s.allow_notifications);
+      const startOfTomorrow = new Date();
+      startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+      startOfTomorrow.setHours(0, 0, 0, 0);
+
+      const subsWithNotifications = subs.filter(
+        s => s.allow_notifications && s.next_payment_date >= startOfTomorrow.getTime()
+      );
       let scheduledCount = 0;
       let skippedCount = 0;
 
       for (const subscription of subsWithNotifications) {
-        // Verificar si necesita reprogramar (fecha de pago cambió o no está programada)
-        const shouldSchedule = await needsReschedule(
-          subscription.id,
-          subscription.next_payment_date
-        );
+        const shouldSchedule = await needsReschedule(subscription.id, subscription.next_payment_date);
 
         if (shouldSchedule) {
-          // Cancelar notificación anterior si existe
           await cancelSubscriptionNotification(subscription.id);
           await removeFromNotificationQueue(subscription.id);
-
-          // Programar nueva notificación
           const notificationId = await scheduleSubscriptionNotification(subscription);
 
           if (notificationId) {
-            await addToNotificationQueue(
-              subscription.id,
-              notificationId,
-              subscription.next_payment_date
-            );
+            await addToNotificationQueue(subscription.id, notificationId, subscription.next_payment_date);
             scheduledCount++;
           }
         } else {
@@ -164,10 +128,9 @@ export const NotificationsProvider = ({
         }
       }
 
-      // Limpiar notificaciones de suscripciones que ya no tienen notificaciones habilitadas
-      const subsWithoutNotifications = subscriptions.filter(s => !s.allow_notifications);
+      const subsWithoutNotifications = subs.filter(s => !s.allow_notifications);
       for (const subscription of subsWithoutNotifications) {
-        const wasScheduled = await isNotificationScheduled(subscription.id, 0);
+        const wasScheduled = await isNotificationScheduled(subscription.id);
         if (wasScheduled) {
           await cancelSubscriptionNotification(subscription.id);
           await removeFromNotificationQueue(subscription.id);
@@ -175,21 +138,17 @@ export const NotificationsProvider = ({
       }
 
       console.log(`Notificaciones: ${scheduledCount} programadas, ${skippedCount} ya existentes`);
-      subscriptionsRef.current = subscriptions;
-      hasScheduledRef.current = true;
     } catch (error) {
       console.error("Error programando notificaciones:", error);
     } finally {
       isSchedulingRef.current = false;
     }
-  }, [permissionsGranted, subscriptions]);
+  }, [permissionsGranted]); // estable — subscriptions se lee del ref
 
-  // Programar notificaciones solo cuando sea necesario
   useEffect(() => {
     scheduleAllNotifications();
-  }, [scheduleAllNotifications]);
+  }, [scheduleAllNotifications, subscriptions.length]); // subscriptions.length es un número, no una referencia
 
-  // Solicitar permisos de notificaciones
   const requestPermissions = async (): Promise<boolean> => {
     const granted = await setupNotifications();
     setPermissionsGranted(granted);
@@ -202,7 +161,6 @@ export const NotificationsProvider = ({
     scheduleNotification: scheduleSubscriptionNotification,
     cancelNotification: cancelSubscriptionNotification,
     cancelAllNotifications: cancelAllSubscriptionNotifications,
-    // Funciones de testing
     sendTestNotification,
     simulateSubscriptionNotification,
     listScheduledNotifications,
@@ -218,9 +176,7 @@ export const NotificationsProvider = ({
 export const useNotifications = () => {
   const context = useContext(NotificationsContext);
   if (context === undefined) {
-    throw new Error(
-      "useNotifications must be used within a NotificationsProvider"
-    );
+    throw new Error("useNotifications must be used within a NotificationsProvider");
   }
   return context;
 };

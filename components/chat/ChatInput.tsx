@@ -37,7 +37,6 @@ export default function ChatInput({
             maxLength={500}
             editable={!isLoading && !isDisabled}
             scrollEnabled
-            maxHeight={100}
           />
         </View>
 
