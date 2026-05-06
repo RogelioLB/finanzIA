@@ -2,7 +2,7 @@ import { API_CONFIG } from "@/constants/Config";
 import { parseMessageMetadata, removeMarkers } from "@/lib/chat/messageParser";
 import { ChatMessage } from "@/lib/database/sqliteService";
 import { useSQLiteContext } from "expo-sqlite";
-import React, { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import uuid from "react-native-uuid";
 import { useCreditCards } from "./CreditCardsContext";
 import { useObjectives } from "./ObjectivesContext";
@@ -42,6 +42,20 @@ export function ChatProvider({ children }: ChatProviderProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasGeneratedGreeting, setHasGeneratedGreeting] = useState(false);
+
+  // Refs para leer datos actuales en callbacks sin añadirlos como deps
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const isLoadingRef = useRef(isLoading);
+  isLoadingRef.current = isLoading;
+  const transactionsRef = useRef(transactions);
+  transactionsRef.current = transactions;
+  const walletsRef = useRef(wallets);
+  walletsRef.current = wallets;
+  const objectivesRef = useRef(objectives);
+  objectivesRef.current = objectives;
+  const creditCardsRef = useRef(creditCards);
+  creditCardsRef.current = creditCards;
 
   // Cargar historial de mensajes al iniciar
   useEffect(() => {
@@ -89,9 +103,9 @@ Sé amigable, conversacional y específico. Usa datos reales del usuario.`;
   /**
    * Envía un mensaje a la API y recibe respuesta streaming
    */
-  const sendMessage = async (content: string, isGreeting: boolean = false): Promise<void> => {
+  const sendMessage = useCallback(async (content: string, isGreeting: boolean = false): Promise<void> => {
     if (!content.trim() && !isGreeting) return;
-    if (isLoading) return;
+    if (isLoadingRef.current) return;
 
     setError(null);
     setIsLoading(true);
@@ -111,8 +125,8 @@ Sé amigable, conversacional y específico. Usa datos reales del usuario.`;
       }
 
       // 2. Preparar request a la API
-      const apiMessages = messages
-        .filter((m) => !isGreeting) // Excluir mensaje del usuario si es saludo automático
+      const apiMessages = messagesRef.current
+        .filter((m) => !isGreeting)
         .map((m) => ({
           role: m.role as "user" | "assistant" | "system",
           content: m.content,
@@ -138,10 +152,10 @@ Sé amigable, conversacional y específico. Usa datos reales del usuario.`;
         body: JSON.stringify({
           messages: apiMessages,
           financialContext: {
-            transactions,
-            wallets,
-            objectives,
-            creditCards,
+            transactions: transactionsRef.current,
+            wallets: walletsRef.current,
+            objectives: objectivesRef.current,
+            creditCards: creditCardsRef.current,
           },
         }),
       });
@@ -219,7 +233,7 @@ Sé amigable, conversacional y específico. Usa datos reales del usuario.`;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [db]); // estable — datos financieros se leen de refs
 
   /**
    * Guarda un mensaje en la base de datos
@@ -247,7 +261,7 @@ Sé amigable, conversacional y específico. Usa datos reales del usuario.`;
   /**
    * Limpia el historial de chat
    */
-  const clearHistory = async (): Promise<void> => {
+  const clearHistory = useCallback(async (): Promise<void> => {
     try {
       await (db as any).runAsync("DELETE FROM chat_messages");
       setMessages([]);
@@ -257,15 +271,15 @@ Sé amigable, conversacional y específico. Usa datos reales del usuario.`;
       console.error("[ChatContext] Error clearing history:", err);
       setError("Error al limpiar el historial");
     }
-  };
+  }, [db]);
 
-  const value: ChatContextType = {
+  const value = useMemo<ChatContextType>(() => ({
     messages,
     isLoading,
     error,
     sendMessage,
     clearHistory,
-  };
+  }), [messages, isLoading, error, sendMessage, clearHistory]);
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 }
