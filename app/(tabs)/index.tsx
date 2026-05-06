@@ -47,7 +47,7 @@ export default function HomeScreen() {
   const { transactions } = useTransactions();
   const { objectives } = useObjectives();
   const { subscriptions } = useSubscriptions();
-  const { totalValue: investmentsTotal, totalGain: investmentsGain, gainPct: investmentsGainPct } = useInvestments();
+  const { investments, totalValue: investmentsTotal, totalGain: investmentsGain, gainPct: investmentsGainPct } = useInvestments();
 
   const [quickPaySub, setQuickPaySub] = useState<Subscription | null>(null);
   const [showQuickPay, setShowQuickPay] = useState(false);
@@ -61,13 +61,35 @@ export default function HomeScreen() {
   const compact = density === 'compact';
   const pad = compact ? 16 : 20;
 
+  const investmentsByWallet = useMemo(() => {
+    const map: Record<string, { totalValue: number; totalCost: number; gainPct: number }> = {};
+    for (const inv of investments) {
+      if (!inv.wallet_id) continue;
+      const entry = map[inv.wallet_id] ?? { totalValue: 0, totalCost: 0, gainPct: 0 };
+      entry.totalValue += inv.current_value;
+      entry.totalCost += inv.principal;
+      map[inv.wallet_id] = entry;
+    }
+    for (const wid of Object.keys(map)) {
+      const e = map[wid];
+      e.gainPct = e.totalCost > 0 ? ((e.totalValue - e.totalCost) / e.totalCost) * 100 : 0;
+    }
+    return map;
+  }, [investments]);
+
   const netWorth = useMemo(() => {
     const walletsSum = wallets.reduce((sum, w) => {
       const balance = w.net_balance ?? w.balance;
-      return sum + (w.type === 'credit' ? -balance : balance);
+      const inv = investmentsByWallet[w.id];
+      const total = balance + (w.type !== 'credit' && inv ? inv.totalValue : 0);
+      return sum + (w.type === 'credit' ? -balance : total);
     }, 0);
-    return walletsSum + investmentsTotal;
-  }, [wallets, investmentsTotal]);
+    // Solo agregar inversiones sin cuenta vinculada (las vinculadas ya están en el saldo de la wallet)
+    const unlinkedInvestments = investments
+      .filter(inv => !inv.wallet_id)
+      .reduce((sum, inv) => sum + inv.current_value, 0);
+    return walletsSum + unlinkedInvestments;
+  }, [wallets, investments, investmentsByWallet]);
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
@@ -163,6 +185,9 @@ export default function HomeScreen() {
                 const bal = w.net_balance ?? w.balance;
                 const isCredit = w.type === 'credit';
                 const cardColor = w.color || accent;
+                const inv = investmentsByWallet[w.id];
+                const totalBal = isCredit ? bal : bal + (inv?.totalValue ?? 0);
+                const gainPct = inv?.gainPct ?? 0;
                 return (
                   <TouchableOpacity
                     key={w.id}
@@ -189,9 +214,18 @@ export default function HomeScreen() {
                     </View>
                     <Text style={[styles.walletName, { color: theme.textSec }]} numberOfLines={1}>{w.name}</Text>
                     <Text style={[styles.walletBalance, { color: isCredit ? theme.bad : theme.text }]}>
-                      {isCredit ? '−' : ''}{MXN(Math.abs(bal))}
+                      {isCredit ? '−' : ''}{MXN(Math.abs(totalBal))}
                     </Text>
-                    {isCredit && w.credit_limit ? (
+                    {inv && !isCredit ? (
+                      <View style={styles.walletInvRow}>
+                        <Text style={[styles.walletSub, { color: theme.textTer }]}>
+                          Inv. {MXN(inv.totalValue)}
+                        </Text>
+                        <Text style={[styles.walletGainBadge, { color: gainPct >= 0 ? theme.good : theme.bad }]}>
+                          {gainPct >= 0 ? '+' : ''}{gainPct.toFixed(2)}%
+                        </Text>
+                      </View>
+                    ) : isCredit && w.credit_limit ? (
                       <Text style={[styles.walletSub, { color: theme.textTer }]}>
                         Límite: {MXN(w.credit_limit)}
                       </Text>
@@ -348,6 +382,8 @@ const styles = StyleSheet.create({
   walletName: { fontSize: 12, fontWeight: '500' },
   walletBalance: { fontSize: 18, fontWeight: '700', letterSpacing: -0.5 },
   walletSub: { fontSize: 10, marginTop: 1 },
+  walletInvRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 1 },
+  walletGainBadge: { fontSize: 10, fontWeight: '600' },
   heroSection: {},
   heroLabel: { fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 },
   heroAmount: { flexDirection: 'row', alignItems: 'baseline' },
