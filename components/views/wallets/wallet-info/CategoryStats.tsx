@@ -1,4 +1,5 @@
 import { currencies, Currency } from "@/constants/currencies";
+import { CategoryIcon } from "@/components/views/forms/categoryIcon";
 import { useTheme } from "@/theme/ThemeProvider";
 import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -84,8 +85,14 @@ export default function CategoryStats({ transactions, totalAmount, currency }: C
         <View style={styles.legend}>
           {entries.map((e, i) => (
             <View key={i} style={styles.legendRow}>
-              <View style={[styles.dot, { backgroundColor: e.color }]} />
-              <Text style={styles.icon}>{e.icon}</Text>
+              <View style={[styles.iconWrap, { backgroundColor: `${e.color}22` }]}>
+                <CategoryIcon
+                  category={{ icon: e.icon, name: e.name }}
+                  size={14}
+                  color={e.color}
+                  strokeWidth={1.8}
+                />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
                   {e.name}
@@ -125,9 +132,8 @@ const styles = StyleSheet.create({
   centerLabel: { fontSize: 9 },
   centerAmount: { fontSize: 11, fontWeight: "700", marginTop: 1 },
   legend: { flex: 1, gap: 9 },
-  legendRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  icon: { fontSize: 14 },
+  legendRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  iconWrap: { width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   name: { fontSize: 12, fontWeight: "500" },
   sub: { fontSize: 10, marginTop: 1 },
   pct: { fontSize: 11, fontWeight: "600", marginLeft: 4 },
