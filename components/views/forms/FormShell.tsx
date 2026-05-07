@@ -21,6 +21,7 @@ interface FormShellProps {
   isSubmitting?: boolean;
   onClose: () => void;
   onSave: () => void;
+  onDelete?: () => void;
   children: ReactNode;
 }
 
@@ -32,6 +33,7 @@ export default function FormShell({
   isSubmitting = false,
   onClose,
   onSave,
+  onDelete,
   children,
 }: FormShellProps) {
   const { theme, accent } = useTheme();
@@ -68,6 +70,20 @@ export default function FormShell({
             {children}
           </ScrollView>
           <View style={[styles.footer, { borderTopColor: theme.divider }]}>
+            {onDelete && (
+              <TouchableOpacity
+                onPress={onDelete}
+                style={[
+                  styles.deleteBtn,
+                  { borderColor: theme.bad },
+                ]}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.deleteText, { color: theme.bad }]}>
+                  Eliminar
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               disabled={disabled}
               onPress={onSave}
@@ -131,4 +147,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   saveText: { fontSize: 15, fontWeight: "600", letterSpacing: -0.2 },
+  deleteBtn: {
+    height: 50,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    marginBottom: 8,
+  },
+  deleteText: { fontSize: 15, fontWeight: "600", letterSpacing: -0.2 },
 });
