@@ -1,7 +1,6 @@
 import { currencies, Currency } from "@/constants/currencies";
-import { useSQLiteService } from "@/lib/database/sqliteService";
 import { useTheme } from "@/theme/ThemeProvider";
-import React, { useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { PieChart } from "react-native-gifted-charts";
 import { Transaction } from "./types";
@@ -22,90 +21,82 @@ interface CatStat {
 
 export default function CategoryStats({ transactions, totalAmount, currency }: CategoryStatsProps) {
   const { theme, accent } = useTheme();
-  const { getCategoryById } = useSQLiteService();
-  const [stats, setStats] = useState<Record<string, CatStat>>({});
-
   const sym = currencies.find((c: Currency) => c.code === currency)?.symbol || "$";
 
-  useEffect(() => {
-    if (transactions.length === 0) { setStats({}); return; }
-    const calc = async () => {
-      const s: Record<string, CatStat> = {};
-      for (const t of transactions) {
-        let name = "Sin categoría", icon = "📊", color = accent;
-        if (t.category_id) {
-          try {
-            const cat = await getCategoryById(t.category_id);
-            if (cat) { name = cat.name; icon = cat.icon; color = cat.color; }
-          } catch {}
-        }
-        if (!s[name]) s[name] = { amount: 0, count: 0, percentage: 0, icon, color };
-        s[name].amount += t.amount;
-        s[name].count += 1;
-      }
-      Object.values(s).forEach((v) => {
-        v.percentage = totalAmount > 0 ? (v.amount / totalAmount) * 100 : 0;
-      });
-      setStats(s);
-    };
-    calc();
-  }, [transactions, totalAmount]);
-
-  const entries = Object.entries(stats)
-    .sort(([, a], [, b]) => b.amount - a.amount)
-    .slice(0, 5);
+  // Usa los campos ya unidos por el JOIN — sin llamadas async
+  const entries = useMemo(() => {
+    const stats: Record<string, CatStat> = {};
+    for (const t of transactions) {
+      const name = t.category_name || "Sin categoría";
+      const icon = t.category_icon || "📊";
+      const color = t.category_color || accent;
+      if (!stats[name]) stats[name] = { amount: 0, count: 0, percentage: 0, icon, color };
+      stats[name].amount += t.amount;
+      stats[name].count += 1;
+    }
+    return Object.entries(stats)
+      .map(([name, d]) => ({
+        name,
+        ...d,
+        percentage: totalAmount > 0 ? (d.amount / totalAmount) * 100 : 0,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+  }, [transactions, totalAmount, accent]);
 
   if (entries.length === 0) return null;
 
-  const pieData = entries.map(([name, d]) => ({
-    value: d.amount,
-    color: d.color,
-    text: `${d.percentage.toFixed(0)}%`,
+  const pieData = entries.map((e) => ({
+    value: e.amount,
+    color: e.color,
+    text: `${e.percentage.toFixed(0)}%`,
     textColor: "#fff",
     textSize: 11,
-    category: name,
-    count: d.count,
-    icon: d.icon,
   }));
 
   return (
     <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <Text style={[styles.title, { color: theme.text }]}>Por categoría</Text>
 
-      <View style={styles.chartRow}>
-        <PieChart
-          data={pieData}
-          radius={72}
-          innerRadius={40}
-          showText
-          textSize={11}
-          textColor="#fff"
-          fontWeight="700"
-          isAnimated
-          animationDuration={800}
-          centerLabelComponent={() => (
-            <View style={styles.center}>
-              <Text style={[styles.centerLabel, { color: theme.textTer }]}>Total</Text>
-              <Text style={[styles.centerAmount, { color: theme.text }]}>
-                {sym}{totalAmount.toFixed(0)}
-              </Text>
-            </View>
-          )}
-        />
-
-        <View style={styles.legend}>
-          {pieData.map((item, i) => (
-            <View key={i} style={styles.legendItem}>
-              <View style={[styles.dot, { backgroundColor: item.color }]} />
-              <Text style={styles.legendIcon}>{item.icon}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.legendName, { color: theme.text }]} numberOfLines={1}>
-                  {item.category}
-                </Text>
-                <Text style={[styles.legendSub, { color: theme.textTer }]}>
-                  {sym}{item.value.toFixed(0)} · {item.count}
+      <View style={styles.body}>
+        <View>
+          <PieChart
+            data={pieData}
+            radius={68}
+            innerRadius={38}
+            showText
+            textSize={11}
+            textColor="#fff"
+            fontWeight="700"
+            isAnimated
+            animationDuration={600}
+            centerLabelComponent={() => (
+              <View style={[styles.center, { backgroundColor: theme.surface }]}>
+                <Text style={[styles.centerLabel, { color: theme.textTer }]}>Total</Text>
+                <Text style={[styles.centerAmount, { color: theme.text }]}>
+                  {sym}{totalAmount.toFixed(0)}
                 </Text>
               </View>
+            )}
+          />
+        </View>
+
+        <View style={styles.legend}>
+          {entries.map((e, i) => (
+            <View key={i} style={styles.legendRow}>
+              <View style={[styles.dot, { backgroundColor: e.color }]} />
+              <Text style={styles.icon}>{e.icon}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
+                  {e.name}
+                </Text>
+                <Text style={[styles.sub, { color: theme.textTer }]}>
+                  {sym}{e.amount.toFixed(0)} · {e.count} mov.
+                </Text>
+              </View>
+              <Text style={[styles.pct, { color: theme.textSec }]}>
+                {e.percentage.toFixed(0)}%
+              </Text>
             </View>
           ))}
         </View>
@@ -122,15 +113,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 16,
   },
-  title: { fontSize: 14, fontWeight: "600", letterSpacing: -0.2, marginBottom: 16 },
-  chartRow: { flexDirection: "row", alignItems: "center", gap: 16 },
-  center: { alignItems: "center" },
-  centerLabel: { fontSize: 10 },
-  centerAmount: { fontSize: 12, fontWeight: "700", marginTop: 1 },
-  legend: { flex: 1, gap: 8 },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  title: { fontSize: 14, fontWeight: "600", letterSpacing: -0.2, marginBottom: 14 },
+  body: { flexDirection: "row", alignItems: "center", gap: 16 },
+  center: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  centerLabel: { fontSize: 9 },
+  centerAmount: { fontSize: 11, fontWeight: "700", marginTop: 1 },
+  legend: { flex: 1, gap: 9 },
+  legendRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  legendIcon: { fontSize: 14 },
-  legendName: { fontSize: 12, fontWeight: "500" },
-  legendSub: { fontSize: 10, marginTop: 1 },
+  icon: { fontSize: 14 },
+  name: { fontSize: 12, fontWeight: "500" },
+  sub: { fontSize: 10, marginTop: 1 },
+  pct: { fontSize: 11, fontWeight: "600", marginLeft: 4 },
 });
