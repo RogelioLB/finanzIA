@@ -9,7 +9,26 @@
       "Bash(git push:*)",
       "WebFetch(domain:docs.expo.dev)",
       "Bash(npx tsc:*)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\rogel\\\\Documents\\\\finanzIA\" -Recurse -Directory -Depth 2)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(xargs grep *)",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(mkdir -p /tmp/design)",
+      "Bash(tar -xzvf \"C:\\\\Users\\\\rogel\\\\.claude\\\\projects\\\\C--Users-rogel-Documents-finanzIA\\\\1759a072-8a0f-42f4-88aa-e106d28adfd7\\\\tool-results\\\\webfetch-1777925324814-lhi4n5.bin\" -C /tmp/design)",
+      "Bash(cp \"/c/Users/rogel/.claude/projects/C--Users-rogel-Documents-finanzIA/1759a072-8a0f-42f4-88aa-e106d28adfd7/tool-results/webfetch-1777925324814-lhi4n5.bin\" /tmp/design/design.tar.gz)",
+      "Bash(tar -xzvf design.tar.gz)",
+      "Bash(rtk grep *)",
+      "Bash(eas submit *)",
+      "Bash(rtk git *)",
+      "Bash(Get-ChildItem *)",
+      "Read(//c/Users/rogel/.claude/projects/C--Users-rogel-Documents-finanzIA/f6bc867e-875b-4396-9b71-0f31072d590b/tool-results//**)",
+      "Bash(gunzip -c webfetch-1778109486328-gu0mx6.bin)",
+      "Read(//tmp/**)",
+      "Bash(mkdir -p /tmp/finanzia-design)",
+      "Bash(tar -xf /tmp/design.tar -C /tmp/finanzia-design)",
+      "Bash(grep -rn \"router.push.*credit-cards\\\\b\\\\|/credit-cards[\\\\\"'\\\\\\\\\\\\\\\\?]\\\\|push.*\\\\\"/credit-cards\\\\\"\" /c/Users/rogel/Documents/finanzIA/app /c/Users/rogel/Documents/finanzIA/components)"
     ]
   }
 }

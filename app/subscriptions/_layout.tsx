@@ -1,15 +1,16 @@
 import { Stack } from "expo-router";
 
-export default function WalletsLayout() {
+export default function SubscriptionsLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
+        animation: "slide_from_right",
       }}
     >
       <Stack.Screen name="index" />
       <Stack.Screen
-        name="add-wallet"
+        name="add"
         options={{
           animation: "slide_from_bottom",
           animationDuration: 280,
@@ -17,6 +18,7 @@ export default function WalletsLayout() {
           gestureDirection: "vertical",
         }}
       />
+      <Stack.Screen name="edit/[id]" />
     </Stack>
   );
 }

@@ -162,6 +162,16 @@ export default function RootLayout() {
                                           }}
                                         />
                                         <Stack.Screen
+                                          name="edit-transaction/[id]"
+                                          options={{
+                                            headerShown: false,
+                                            animation: "slide_from_bottom",
+                                            animationDuration: 280,
+                                            gestureEnabled: true,
+                                            gestureDirection: "vertical",
+                                          }}
+                                        />
+                                        <Stack.Screen
                                           name="subscriptions"
                                           options={{
                                             title: "Suscripciones",

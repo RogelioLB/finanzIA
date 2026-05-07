@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useTheme } from '@/theme/ThemeProvider';
 import { useWallets } from '@/contexts/WalletsContext';
 import { useObjectives } from '@/contexts/ObjectivesContext';
@@ -11,8 +11,15 @@ import { MXN } from '@/theme/format';
 export default function DebtsScreen() {
   const { theme, accent, density } = useTheme();
   const router = useRouter();
-  const { wallets } = useWallets();
-  const { objectives } = useObjectives();
+  const { wallets, refreshWallets } = useWallets();
+  const { objectives, refreshObjectives } = useObjectives();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshWallets();
+      refreshObjectives();
+    }, [refreshWallets, refreshObjectives])
+  );
 
   const compact = density === 'compact';
   const pad = compact ? 16 : 20;
@@ -61,11 +68,30 @@ export default function DebtsScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.bg }]} edges={['top']}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        <View style={[styles.header, { paddingHorizontal: pad, marginBottom: 24 }]}>
-          <Text style={[styles.title, { color: theme.text }]}>Deudas</Text>
-          <Text style={[styles.subtitle, { color: theme.textSec }]}>
-            {debts.length} activas · {Math.round(totalPaid / totalOriginal * 100)}% pagado
-          </Text>
+        <View style={[styles.header, { paddingHorizontal: pad, marginBottom: 24, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.title, { color: theme.text }]}>Deudas</Text>
+            <Text style={[styles.subtitle, { color: theme.textSec }]}>
+              {debts.length} activas{totalOriginal > 0 ? ` · ${Math.round(totalPaid / totalOriginal * 100)}% pagado` : ''}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => router.push('/debts/pay')}
+              style={{ height: 36, paddingHorizontal: 14, borderRadius: 18, backgroundColor: accent, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 }}
+              activeOpacity={0.85}
+            >
+              <DesignIcon.Cash size={14} color="#fff" strokeWidth={2} />
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Pagar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push('/objectives/add-debt')}
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}
+              activeOpacity={0.85}
+            >
+              <DesignIcon.Plus size={18} color={theme.text} strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={[styles.totalCard, { backgroundColor: theme.surface, borderColor: theme.border, marginHorizontal: pad, marginBottom: 20, padding: compact ? 16 : 20, borderRadius: 22 }]}>

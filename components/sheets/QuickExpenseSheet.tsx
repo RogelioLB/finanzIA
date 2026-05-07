@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Easing, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, useAnimatedProps } from 'react-native-reanimated';
+import { Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/theme/ThemeProvider';
 import { DesignIcon } from '@/components/ui/Icon';
 import { MXN } from '@/theme/format';
@@ -8,6 +9,7 @@ import { useAddTransaction } from '@/hooks/useAddTransaction';
 import { useCategories } from '@/hooks/useCategories';
 import { useWallets } from '@/contexts/WalletsContext';
 import { Toast } from '@/components/ui/Toast';
+import ClockTimePicker from '@/components/views/forms/ClockTimePicker';
 
 interface QuickExpenseSheetProps {
   visible: boolean;
@@ -47,6 +49,9 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
   const [note, setNote] = useState('');
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [listening, setListening] = useState(false);
+  const [timestamp, setTimestamp] = useState(Date.now());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showClock, setShowClock] = useState(false);
 
   const toggleRef = useRef<View>(null);
   const expenseBtnRef = useRef<View>(null);
@@ -154,6 +159,9 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
     setShowAccountPicker(false);
     setKind('expense');
     setListening(false);
+    setTimestamp(Date.now());
+    setShowDatePicker(false);
+    setShowClock(false);
     resetTransaction();
     onClose();
   }, [onClose, resetTransaction]);
@@ -173,7 +181,7 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
       return;
     }
     const cat = selectedCategory;
-    const success = await createTransaction(Date.now(), {
+    const success = await createTransaction(timestamp, {
       amount: amount,
       wallet: selectedWallet,
       category: cat,
@@ -186,7 +194,7 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
     } else {
       Toast.error('No se pudo guardar', 'Revisa el monto o la cuenta seleccionada');
     }
-  }, [amount, kind, categoryId, selectedWallet, selectedCategory, note, createTransaction, handleClose]);
+  }, [amount, kind, categoryId, selectedWallet, selectedCategory, note, timestamp, createTransaction, handleClose]);
 
   const toggleVoice = () => setListening(true);
 
@@ -338,7 +346,7 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
           </ScrollView>
         )}
 
-        <View style={{ paddingHorizontal: 18, marginBottom: 10 }}>
+        <View style={{ paddingHorizontal: 18, marginBottom: 10, flexDirection: 'row', gap: 8 }}>
           {noteOpen ? (
             <TextInput
               autoFocus
@@ -346,18 +354,34 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
               onChangeText={setNote}
               placeholder={isIncome ? 'Concepto…' : 'Nota…'}
               placeholderTextColor={theme.textTer}
-              style={[styles.noteInput, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
+              style={[styles.noteInput, { flex: 1, backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
             />
           ) : (
             <TouchableOpacity
               onPress={() => setNoteOpen(true)}
-              style={[styles.noteBtn, { borderColor: theme.borderStrong }]}
+              style={[styles.noteBtn, { flex: 1, borderColor: theme.borderStrong }]}
             >
               <Text style={{ color: theme.textSec, fontSize: 12 }}>
                 + {isIncome ? 'Concepto' : 'Nota'}
               </Text>
             </TouchableOpacity>
           )}
+          <TouchableOpacity
+            onPress={() => setShowDatePicker(true)}
+            style={[styles.dateChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          >
+            <Text style={[styles.dateChipText, { color: theme.text, fontVariant: ['tabular-nums'] }]} numberOfLines={1}>
+              {new Date(timestamp).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setShowClock(true)}
+            style={[styles.dateChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          >
+            <Text style={[styles.dateChipText, { color: theme.text, fontVariant: ['tabular-nums'] }]}>
+              {new Date(timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.numpad}>
@@ -391,6 +415,29 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
           </TouchableOpacity>
         </View>
       </View>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={new Date(timestamp)}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(_, d) => {
+            setShowDatePicker(Platform.OS === 'ios');
+            if (d) {
+              const next = new Date(timestamp);
+              next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+              setTimestamp(next.getTime());
+            }
+          }}
+        />
+      )}
+
+      <ClockTimePicker
+        visible={showClock}
+        initialDate={timestamp}
+        onClose={() => setShowClock(false)}
+        onConfirm={(ts) => setTimestamp(ts)}
+      />
     </Modal>
   );
 }
@@ -517,6 +564,13 @@ const styles = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, borderStyle: 'dashed',
     justifyContent: 'center',
   },
+  dateChip: {
+    height: 38, paddingHorizontal: 12,
+    borderRadius: 12, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+    minWidth: 64,
+  },
+  dateChipText: { fontSize: 12, fontWeight: '600' },
   numpad: {
     flexDirection: 'row',
     flexWrap: 'wrap',

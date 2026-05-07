@@ -1,255 +1,293 @@
-import AnimatedAlert from "@/components/AnimatedAlert";
-import AmountBottomSheet from "@/components/views/wallets/AmountBottomSheet";
-import CurrencySelector from "@/components/views/wallets/CurrencySelector";
-import { useWallets } from "@/contexts/WalletsContext";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useTheme } from "@/theme/ThemeProvider";
+import { Toast } from "@/components/ui/Toast";
 import { DesignIcon } from "@/components/ui/Icon";
+import FormShell from "@/components/views/forms/FormShell";
+import {
+  ColorSwatches,
+  FormGroup,
+  PickerRow,
+  SegmentedField,
+  TextField,
+} from "@/components/views/forms/FormFields";
+import {
+  IconPickerSheet,
+  ListPickerSheet,
+} from "@/components/views/forms/PickerSheets";
+import {
+  BANKS,
+  COLOR_OPTIONS,
+  CURRENCIES,
+  ICON_OPTIONS,
+} from "@/components/views/forms/constants";
+import { useWallets } from "@/contexts/WalletsContext";
+import { useTheme } from "@/theme/ThemeProvider";
+import { useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 
-const WALLET_ICONS = [
-  { icon: "🏦", name: "Banco" },
-  { icon: "💳", name: "Tarjeta" },
-  { icon: "💰", name: "Efectivo" },
-  { icon: "🏧", name: "ATM" },
-  { icon: "💎", name: "Inversión" },
-  { icon: "🎯", name: "Ahorros" },
-  { icon: "📱", name: "Digital" },
-  { icon: "🔒", name: "Seguro" },
-];
+type WalletKind = "debit" | "cash" | "wallet";
+type PickerKey = "icon" | "currency" | "bank" | null;
 
-const WALLET_COLORS = [
-  "#4CAF50", "#2196F3", "#FF9800", "#9C27B0",
-  "#F44336", "#00BCD4", "#795548", "#607D8B",
-];
+const ICON_NAME_TO_EMOJI: Record<string, string> = {
+  Bank: "🏦",
+  Card: "💳",
+  Cash: "💰",
+  Wallet: "👛",
+  PiggyBank: "🐷",
+  Stocks: "📈",
+  Crypto: "🪙",
+  Bag: "🛍️",
+  Bolt: "⚡",
+  Home2: "🏠",
+  Phone: "📱",
+  Education: "🎓",
+};
 
 export default function AddWalletScreen() {
-  const { theme, accent } = useTheme();
-  const [name, setName] = useState("");
-  const [balance, setBalance] = useState("0");
-  const [selectedIcon, setSelectedIcon] = useState(WALLET_ICONS[0].icon);
-  const [selectedColor, setSelectedColor] = useState(WALLET_COLORS[0]);
-  const [selectedCurrency, setSelectedCurrency] = useState("MXN");
-  const [isLoading, setIsLoading] = useState(false);
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [showErrorAlert, setShowErrorAlert] = useState(false);
-  const [showValidationAlert, setShowValidationAlert] = useState(false);
-  const [showAmountSheet, setShowAmountSheet] = useState(false);
-
   const router = useRouter();
+  const { theme } = useTheme();
   const { createWallet } = useWallets();
 
-  const handleAmountComplete = (newAmount: string) => {
-    setBalance(newAmount);
-    setShowAmountSheet(false);
-  };
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState<WalletKind>("debit");
+  const [bank, setBank] = useState("");
+  const [last4, setLast4] = useState("");
+  const [balance, setBalance] = useState("");
+  const [currency, setCurrency] = useState("MXN");
+  const [iconName, setIconName] = useState("Bank");
+  const [color, setColor] = useState("#0A84FF");
+  const [pickerOpen, setPickerOpen] = useState<PickerKey>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isFormValid = () => {
-    return name.trim().length > 0 && !isNaN(parseFloat(balance)) && parseFloat(balance) >= 0;
-  };
+  const cur = useMemo(
+    () => CURRENCIES.find((c) => c.code === currency) || CURRENCIES[0],
+    [currency]
+  );
 
-  const handleCreateWallet = async () => {
-    if (!isFormValid()) {
-      setShowValidationAlert(true);
-      return;
-    }
+  const Ico = (DesignIcon as any)[iconName] || DesignIcon.Bank;
+
+  const canSave = name.trim().length > 0 && !isSubmitting;
+
+  const iconOptions = useMemo(
+    () =>
+      ICON_OPTIONS.map((n) => ({
+        name: n,
+        component: (DesignIcon as any)[n],
+      })).filter((i) => !!i.component),
+    []
+  );
+
+  const currencyOptions = CURRENCIES.map((c) => ({
+    id: c.code,
+    label: `${c.flag}  ${c.code}`,
+    sub: c.label,
+  }));
+
+  const bankOptions = BANKS.map((b) => ({ id: b, label: b }));
+
+  const handleSave = async () => {
+    if (!canSave) return;
+    setIsSubmitting(true);
     try {
-      setIsLoading(true);
+      const balanceNum = balance ? parseFloat(balance) : 0;
       await createWallet({
         name: name.trim(),
-        balance: parseFloat(balance),
-        icon: selectedIcon,
-        color: selectedColor,
-        currency: selectedCurrency,
+        balance: isNaN(balanceNum) ? 0 : balanceNum,
+        icon: ICON_NAME_TO_EMOJI[iconName] || "🏦",
+        color,
+        currency,
+        type: "regular",
+        bank: kind !== "cash" ? bank || undefined : undefined,
+        last_four_digits: kind === "debit" ? last4 || undefined : undefined,
       });
-      setShowSuccessAlert(true);
-    } catch (error) {
-      setShowErrorAlert(true);
+      Toast.success("¡Cuenta creada!", "La cuenta se creó correctamente.");
+      router.back();
+    } catch (e) {
+      Toast.error("Error", "No se pudo crear la cuenta. Inténtalo de nuevo.");
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.bg }]} edges={['top']}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-        <View style={[styles.header, { borderBottomColor: theme.border }]}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <DesignIcon.Back size={22} color={theme.text} strokeWidth={1.7} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Nueva Cuenta</Text>
-          <TouchableOpacity
+    <>
+      <FormShell
+        title="Nueva cuenta"
+        subtitle="Débito, efectivo o wallet"
+        saveLabel="Crear cuenta"
+        canSave={canSave}
+        isSubmitting={isSubmitting}
+        onClose={() => router.back()}
+        onSave={handleSave}
+      >
+        {/* Live preview */}
+        <View
+          style={[
+            styles.preview,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <View
             style={[
-              styles.saveButton,
-              { backgroundColor: isFormValid() ? accent : theme.surfaceAlt, borderRadius: 8 }
+              styles.previewIcon,
+              { backgroundColor: `${color}22` },
             ]}
-            onPress={handleCreateWallet}
-            disabled={!isFormValid() || isLoading}
           >
-            <Text style={[styles.saveButtonText, { color: isFormValid() ? "#fff" : theme.textTer }]}>
-              {isLoading ? "Guardando..." : "Guardar"}
+            <Ico size={20} color={color} strokeWidth={1.6} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.previewName, { color: theme.text }]}>
+              {name || "Nombre de la cuenta"}
             </Text>
-          </TouchableOpacity>
+            <Text style={[styles.previewSub, { color: theme.textTer }]}>
+              {bank || "—"}
+              {last4 ? ` · •••• ${last4}` : ""}
+            </Text>
+          </View>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text
+              style={[
+                styles.previewAmount,
+                { color: theme.text, fontVariant: ["tabular-nums"] },
+              ]}
+            >
+              {cur.symbol}
+              {balance || "0"}
+            </Text>
+            <Text style={[styles.previewCurrency, { color: theme.textTer }]}>
+              {currency}
+            </Text>
+          </View>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <View style={styles.section}>
-            <TextInput
-              style={[styles.textInput, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
-              placeholder="Nombre de la cuenta"
-              placeholderTextColor={theme.textTer}
-              value={name}
-              onChangeText={setName}
-              maxLength={50}
-            />
-          </View>
+        <SegmentedField
+          label="Tipo de cuenta"
+          value={kind}
+          onChange={(v) => setKind(v as WalletKind)}
+          options={[
+            { id: "debit", label: "Débito" },
+            { id: "cash", label: "Efectivo" },
+            { id: "wallet", label: "Wallet" },
+          ]}
+        />
 
-          <View style={styles.section}>
-            <Text style={[styles.amountSectionText, { color: theme.textSec }]}>A partir de</Text>
-            <TouchableOpacity
-              style={[styles.amountButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
-              onPress={() => setShowAmountSheet(true)}
-            >
-              <Text style={[styles.amountButtonText, { color: accent }]}>${balance}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <CurrencySelector
-            selectedCurrency={selectedCurrency}
-            onSelectCurrency={setSelectedCurrency}
+        <FormGroup>
+          <TextField
+            label="Nombre"
+            placeholder="Ej. BBVA Nómina"
+            value={name}
+            onChange={setName}
           />
+        </FormGroup>
 
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Icono</Text>
-            <View style={styles.iconGrid}>
-              {WALLET_ICONS.map((item, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.iconOption,
-                    { backgroundColor: theme.surfaceAlt },
-                    selectedIcon === item.icon && [styles.iconOptionSelected, { borderColor: accent }],
-                  ]}
-                  onPress={() => setSelectedIcon(item.icon)}
-                >
-                  <Text style={styles.iconOptionText}>{item.icon}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+        {kind !== "cash" && (
+          <FormGroup>
+            <PickerRow
+              label="Banco / Emisor"
+              value={bank || "Seleccionar"}
+              onPress={() => setPickerOpen("bank")}
+            />
+            {kind === "debit" && (
+              <TextField
+                label="Últimos 4 dígitos"
+                placeholder="1234"
+                maxLength={4}
+                keyboardType="number-pad"
+                value={last4}
+                onChange={(v) => setLast4(v.replace(/\D/g, "").slice(0, 4))}
+                mono
+              />
+            )}
+          </FormGroup>
+        )}
 
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Color</Text>
-            <View style={styles.colorGrid}>
-              {WALLET_COLORS.map((color, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.colorOption,
-                    { backgroundColor: color },
-                    selectedColor === color && [styles.colorOptionSelected, { borderColor: theme.text }],
-                  ]}
-                  onPress={() => setSelectedColor(color)}
-                >
-                  {selectedColor === color && (
-                    <Ionicons name="checkmark" size={16} color="white" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </ScrollView>
+        <FormGroup label="Saldo y divisa">
+          <TextField
+            placeholder="0.00"
+            value={balance}
+            onChange={(v) => setBalance(v.replace(/[^0-9.]/g, ""))}
+            prefix={cur.symbol}
+            suffix={currency}
+            keyboardType="decimal-pad"
+            mono
+          />
+          <PickerRow
+            label="Divisa"
+            value={`${cur.flag} ${cur.code}`}
+            onPress={() => setPickerOpen("currency")}
+          />
+        </FormGroup>
 
-        <AnimatedAlert
-          visible={showSuccessAlert}
-          title="¡Éxito!"
-          message="La cuenta ha sido creada correctamente"
-          confirmText="OK"
-          confirmButtonColor={theme.good}
-          onConfirm={() => { setShowSuccessAlert(false); router.back(); }}
-        />
+        <FormGroup label="Apariencia">
+          <PickerRow
+            label="Icono"
+            value={iconName}
+            icon={<Ico size={18} color={color} strokeWidth={1.7} />}
+            onPress={() => setPickerOpen("icon")}
+          />
+          <ColorSwatches
+            colors={COLOR_OPTIONS}
+            selected={color}
+            onSelect={setColor}
+          />
+        </FormGroup>
+      </FormShell>
 
-        <AnimatedAlert
-          visible={showErrorAlert}
-          title="Error"
-          message="No se pudo crear la cuenta. Inténtalo de nuevo."
-          confirmText="OK"
-          confirmButtonColor={theme.bad}
-          onConfirm={() => setShowErrorAlert(false)}
-        />
-
-        <AnimatedAlert
-          visible={showValidationAlert}
-          title="Campos incompletos"
-          message="Por favor completa todos los campos correctamente"
-          confirmText="OK"
-          confirmButtonColor={accent}
-          onConfirm={() => setShowValidationAlert(false)}
-        />
-
-        <AmountBottomSheet
-          visible={showAmountSheet}
-          amount={balance}
-          onAmountChange={setBalance}
-          onClose={() => setShowAmountSheet(false)}
-          onComplete={handleAmountComplete}
-        />
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <ListPickerSheet
+        visible={pickerOpen === "currency"}
+        title="Divisa"
+        options={currencyOptions}
+        value={currency}
+        onPick={(v) => {
+          setCurrency(v);
+          setPickerOpen(null);
+        }}
+        onClose={() => setPickerOpen(null)}
+      />
+      <ListPickerSheet
+        visible={pickerOpen === "bank"}
+        title="Banco"
+        options={bankOptions}
+        value={bank}
+        onPick={(v) => {
+          setBank(v);
+          setPickerOpen(null);
+        }}
+        onClose={() => setPickerOpen(null)}
+      />
+      <IconPickerSheet
+        visible={pickerOpen === "icon"}
+        icons={iconOptions}
+        value={iconName}
+        color={color}
+        onPick={(v) => {
+          setIconName(v);
+          setPickerOpen(null);
+        }}
+        onClose={() => setPickerOpen(null)}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  header: {
+  preview: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-  },
-  backButton: { padding: 8 },
-  headerTitle: { fontSize: 17, fontWeight: "600" },
-  saveButton: { paddingHorizontal: 16, paddingVertical: 8 },
-  saveButtonText: { fontSize: 14, fontWeight: "600" },
-  content: { flex: 1, paddingHorizontal: 16, paddingVertical: 16 },
-  section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 14, fontWeight: "600", marginBottom: 12 },
-  textInput: {
-    borderRadius: 12,
+    gap: 12,
+    borderRadius: 18,
+    padding: 14,
     borderWidth: 1,
-    padding: 16,
-    fontSize: 16,
+    marginBottom: 16,
   },
-  amountSectionText: { fontSize: 13, textAlign: "center", marginBottom: 8 },
-  amountButton: { borderRadius: 12, padding: 16, alignItems: "center", borderWidth: 1 },
-  amountButtonText: { fontSize: 24, fontWeight: "bold" },
-  iconGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  iconOption: {
-    width: 48, height: 48, borderRadius: 24,
-    justifyContent: "center", alignItems: "center",
-    borderWidth: 2, borderColor: "transparent",
+  previewIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  iconOptionSelected: { borderWidth: 2 },
-  iconOptionText: { fontSize: 20 },
-  colorGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  colorOption: {
-    width: 40, height: 40, borderRadius: 20,
-    justifyContent: "center", alignItems: "center",
-    borderWidth: 2, borderColor: "transparent",
-  },
-  colorOptionSelected: {},
+  previewName: { fontSize: 14, fontWeight: "600" },
+  previewSub: { fontSize: 11, marginTop: 2 },
+  previewAmount: { fontSize: 16, fontWeight: "600" },
+  previewCurrency: { fontSize: 10, marginTop: 2 },
 });

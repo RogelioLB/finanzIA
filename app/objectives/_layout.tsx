@@ -10,6 +10,15 @@ export default function ObjectivesLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="add" />
+      <Stack.Screen
+        name="add-debt"
+        options={{
+          animation: "slide_from_bottom",
+          animationDuration: 280,
+          gestureEnabled: true,
+          gestureDirection: "vertical",
+        }}
+      />
       <Stack.Screen name="edit/[id]" />
     </Stack>
   );

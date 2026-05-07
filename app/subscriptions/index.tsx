@@ -1,6 +1,6 @@
 import { useSubscriptions } from "@/contexts/SubscriptionsContext";
 import { useWallets } from "@/contexts/WalletsContext";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -31,7 +31,13 @@ function dayLabel(daysUntil: number) {
 export default function SubscriptionsScreen() {
   const { theme, accent, density, fabIconColor } = useTheme();
   const router = useRouter();
-  const { subscriptions } = useSubscriptions();
+  const { subscriptions, refreshSubscriptions } = useSubscriptions();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshSubscriptions();
+    }, [refreshSubscriptions])
+  );
 
   const [quickPaySub, setQuickPaySub] = useState<Subscription | null>(null);
   const [showQuickPay, setShowQuickPay] = useState(false);

@@ -1,392 +1,332 @@
-import CreditCard from "@/components/CreditCard";
-import { useCreditCards } from "@/contexts/CreditCardsContext";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { Toast } from "@/components/ui/Toast";
+import { DesignIcon } from "@/components/ui/Icon";
+import FormShell from "@/components/views/forms/FormShell";
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-
-const CARD_COLORS = [
-  "#1E3A8A", // Azul oscuro
-  "#7952FC", // Morado
-  "#059669", // Verde
-  "#DC2626", // Rojo
-  "#D97706", // Naranja
-  "#7C3AED", // Violeta
-  "#0891B2", // Cyan
-  "#BE185D", // Rosa
-];
+  ColorSwatches,
+  FormGroup,
+  InfoBox,
+  PickerRow,
+  TextField,
+} from "@/components/views/forms/FormFields";
+import { ListPickerSheet } from "@/components/views/forms/PickerSheets";
+import { BANKS, COLOR_OPTIONS } from "@/components/views/forms/constants";
+import { useCreditCards } from "@/contexts/CreditCardsContext";
+import { useTheme } from "@/theme/ThemeProvider";
+import { useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 
 export default function AddCreditCardScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
   const { createCreditCard } = useCreditCards();
 
   const [name, setName] = useState("");
   const [bank, setBank] = useState("");
-  const [lastFourDigits, setLastFourDigits] = useState("");
-  const [creditLimit, setCreditLimit] = useState("");
-  const [currentBalance, setCurrentBalance] = useState("");
-  const [cutOffDay, setCutOffDay] = useState("15");
-  const [paymentDueDay, setPaymentDueDay] = useState("5");
-  const [interestRate, setInterestRate] = useState("");
-  const [color, setColor] = useState(CARD_COLORS[0]);
+  const [last4, setLast4] = useState("");
+  const [holder, setHolder] = useState("");
+  const [limit, setLimit] = useState("");
+  const [balance, setBalance] = useState("");
+  const [cutoffDay, setCutoffDay] = useState("");
+  const [paymentDay, setPaymentDay] = useState("");
+  const [cat, setCat] = useState("");
+  const [color, setColor] = useState("#820AD1");
+  const [pickerOpen, setPickerOpen] = useState<"bank" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!name.trim()) {
-      Alert.alert("Error", "Ingresa un nombre para la tarjeta");
+  const used = parseFloat(balance) || 0;
+  const limitN = parseFloat(limit) || 0;
+  const pct = limitN > 0 ? (used / limitN) * 100 : 0;
+  const available = Math.max(0, limitN - used);
+  const cutoffN = parseInt(cutoffDay) || 0;
+  const paymentN = parseInt(paymentDay) || 0;
+
+  const canSave =
+    name.trim().length > 0 &&
+    bank.length > 0 &&
+    last4.length === 4 &&
+    limitN > 0 &&
+    cutoffN >= 1 &&
+    cutoffN <= 31 &&
+    paymentN >= 1 &&
+    paymentN <= 31 &&
+    !isSubmitting;
+
+  const bankOptions = useMemo(
+    () => BANKS.map((b) => ({ id: b, label: b })),
+    []
+  );
+
+  const handleSave = async () => {
+    if (!canSave) {
+      Toast.warn("Campos incompletos", "Completa todos los campos requeridos.");
       return;
     }
-
-    const limitNum = parseFloat(creditLimit.replace(/,/g, ""));
-    if (isNaN(limitNum) || limitNum <= 0) {
-      Alert.alert("Error", "Ingresa un límite de crédito válido");
-      return;
-    }
-
-    const cutOff = parseInt(cutOffDay);
-    const paymentDue = parseInt(paymentDueDay);
-    if (cutOff < 1 || cutOff > 31 || paymentDue < 1 || paymentDue > 31) {
-      Alert.alert("Error", "Los días de corte y pago deben estar entre 1 y 31");
-      return;
-    }
-
     setIsSubmitting(true);
-
     try {
       await createCreditCard({
         name: name.trim(),
-        bank: bank.trim() || undefined,
-        last_four_digits: lastFourDigits.trim() || undefined,
-        credit_limit: limitNum,
-        current_balance: currentBalance
-          ? parseFloat(currentBalance.replace(/,/g, ""))
-          : 0,
-        cut_off_day: cutOff,
-        payment_due_day: paymentDue,
-        interest_rate: interestRate
-          ? parseFloat(interestRate.replace(/,/g, ""))
-          : undefined,
+        bank: bank,
+        last_four_digits: last4,
+        credit_limit: limitN,
+        current_balance: used,
+        cut_off_day: cutoffN,
+        payment_due_day: paymentN,
+        interest_rate: cat ? parseFloat(cat) : undefined,
         color,
       });
+      Toast.success("¡Tarjeta creada!", "La tarjeta de crédito se creó correctamente.");
       router.back();
-    } catch (error) {
-      console.error("Error creating credit card:", error);
-      Alert.alert("Error", "No se pudo crear la tarjeta");
+    } catch (e) {
+      Toast.error("Error", "No se pudo crear la tarjeta. Inténtalo de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="close" size={24} color="#1F2937" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Nueva Tarjeta</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
+    <>
+      <FormShell
+        title="Nueva tarjeta de crédito"
+        saveLabel="Crear tarjeta"
+        canSave={canSave}
+        isSubmitting={isSubmitting}
+        onClose={() => router.back()}
+        onSave={handleSave}
       >
-        <ScrollView
-          style={styles.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        {/* Card preview */}
+        <View
+          style={[
+            styles.cardPreview,
+            { backgroundColor: color, shadowColor: color },
+          ]}
         >
-          {/* Preview Card */}
-          <View style={styles.previewContainer}>
-            <CreditCard
-              name={name}
-              bank={bank}
-              lastFourDigits={lastFourDigits}
-              color={color}
-            />
-          </View>
-
-          {/* Color Selector */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Color</Text>
-            <View style={styles.colorGrid}>
-              {CARD_COLORS.map((c) => (
-                <TouchableOpacity
-                  key={c}
-                  style={[
-                    styles.colorOption,
-                    { backgroundColor: c },
-                    color === c && styles.colorOptionSelected,
-                  ]}
-                  onPress={() => setColor(c)}
-                >
-                  {color === c && (
-                    <Ionicons name="checkmark" size={20} color="#fff" />
-                  )}
-                </TouchableOpacity>
-              ))}
+          <View style={styles.cardTop}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardBank}>{(bank || "Banco").toUpperCase()}</Text>
+              <Text style={styles.cardName}>{name || "Nombre tarjeta"}</Text>
             </View>
+            <DesignIcon.Card size={26} color="rgba(255,255,255,0.85)" strokeWidth={1.5} />
           </View>
-
-          {/* Nombre */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Nombre de la tarjeta *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ej: Tarjeta Oro, Platino..."
-              placeholderTextColor="#9CA3AF"
-              value={name}
-              onChangeText={setName}
-            />
-          </View>
-
-          {/* Banco */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Banco</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ej: BBVA, Santander, Banamex..."
-              placeholderTextColor="#9CA3AF"
-              value={bank}
-              onChangeText={setBank}
-            />
-          </View>
-
-          {/* Últimos 4 dígitos */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Últimos 4 dígitos</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="1234"
-              placeholderTextColor="#9CA3AF"
-              value={lastFourDigits}
-              onChangeText={(text) => setLastFourDigits(text.slice(0, 4))}
-              keyboardType="number-pad"
-              maxLength={4}
-            />
-          </View>
-
-          {/* Límite de crédito */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Límite de crédito *</Text>
-            <View style={styles.amountInputContainer}>
-              <Text style={styles.currencySymbol}>$</Text>
-              <TextInput
-                style={styles.amountInput}
-                placeholder="0.00"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="decimal-pad"
-                value={creditLimit}
-                onChangeText={setCreditLimit}
-              />
-            </View>
-          </View>
-
-          {/* Saldo actual */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Saldo actual</Text>
-            <View style={styles.amountInputContainer}>
-              <Text style={styles.currencySymbol}>$</Text>
-              <TextInput
-                style={styles.amountInput}
-                placeholder="0.00"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="decimal-pad"
-                value={currentBalance}
-                onChangeText={setCurrentBalance}
-              />
-            </View>
-          </View>
-
-          {/* Fechas */}
-          <View style={styles.row}>
-            <View style={[styles.section, { flex: 1 }]}>
-              <Text style={styles.label}>Día de corte *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="15"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="number-pad"
-                value={cutOffDay}
-                onChangeText={setCutOffDay}
-                maxLength={2}
-              />
-            </View>
-            <View style={{ width: 16 }} />
-            <View style={[styles.section, { flex: 1 }]}>
-              <Text style={styles.label}>Día de pago *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="5"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="number-pad"
-                value={paymentDueDay}
-                onChangeText={setPaymentDueDay}
-                maxLength={2}
-              />
-            </View>
-          </View>
-
-          {/* Tasa de interés */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Tasa de interés anual (%)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="36.5"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="decimal-pad"
-              value={interestRate}
-              onChangeText={setInterestRate}
-            />
-          </View>
-
-          <View style={{ height: 120 }} />
-        </ScrollView>
-      </KeyboardAvoidingView>
-
-      {/* Botón Guardar */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
-          onPress={handleSubmit}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.submitButtonText}>
-            {isSubmitting ? "Guardando..." : "Crear Tarjeta"}
+          <Text style={styles.cardNumber}>
+            {`••••  ••••  ••••  ${last4 || "••••"}`}
           </Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+          <View style={styles.cardBottom}>
+            <View>
+              <Text style={styles.cardLabel}>TITULAR</Text>
+              <Text style={styles.cardValue}>
+                {(holder || "Nombre Apellido").toUpperCase()}
+              </Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={styles.cardLabel}>DISPONIBLE</Text>
+              <Text style={[styles.cardValue, { fontVariant: ["tabular-nums"] }]}>
+                ${available.toLocaleString("es-MX")}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {limitN > 0 ? (
+          <View style={{ marginBottom: 16, paddingHorizontal: 4 }}>
+            <View style={styles.utilHead}>
+              <Text style={[styles.utilLabel, { color: theme.textTer }]}>Utilización</Text>
+              <Text
+                style={[
+                  styles.utilLabel,
+                  {
+                    color: pct > 70 ? theme.bad : theme.text,
+                    fontVariant: ["tabular-nums"],
+                  },
+                ]}
+              >
+                {pct.toFixed(0)}%
+              </Text>
+            </View>
+            <View style={[styles.utilTrack, { backgroundColor: theme.surfaceAlt }]}>
+              <View
+                style={[
+                  styles.utilFill,
+                  {
+                    width: `${Math.min(100, pct)}%`,
+                    backgroundColor: pct > 70 ? theme.bad : color,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        ) : null}
+
+        <FormGroup label="Identificación">
+          <TextField
+            label="Nombre / Alias"
+            placeholder="Ej. Nu Morada"
+            value={name}
+            onChange={setName}
+          />
+          <PickerRow
+            label="Banco emisor"
+            value={bank || "Seleccionar"}
+            onPress={() => setPickerOpen("bank")}
+          />
+          <TextField
+            label="Últimos 4 dígitos"
+            placeholder="1234"
+            maxLength={4}
+            keyboardType="number-pad"
+            value={last4}
+            onChange={(v) => setLast4(v.replace(/\D/g, "").slice(0, 4))}
+            mono
+          />
+          <TextField
+            label="Titular"
+            placeholder="Nombre como en la tarjeta"
+            value={holder}
+            onChange={setHolder}
+            autoCapitalize="words"
+          />
+        </FormGroup>
+
+        <FormGroup label="Línea y saldo">
+          <TextField
+            label="Límite de crédito"
+            placeholder="30,000"
+            value={limit}
+            onChange={(v) => setLimit(v.replace(/[^0-9.]/g, ""))}
+            prefix="$"
+            suffix="MXN"
+            keyboardType="decimal-pad"
+            mono
+          />
+          <TextField
+            label="Saldo actual usado"
+            placeholder="0"
+            value={balance}
+            onChange={(v) => setBalance(v.replace(/[^0-9.]/g, ""))}
+            prefix="$"
+            suffix="MXN"
+            keyboardType="decimal-pad"
+            mono
+          />
+        </FormGroup>
+
+        <FormGroup label="Fechas">
+          <TextField
+            label="Día de corte"
+            placeholder="15"
+            maxLength={2}
+            keyboardType="number-pad"
+            value={cutoffDay}
+            onChange={(v) => setCutoffDay(v.replace(/\D/g, "").slice(0, 2))}
+            suffix="del mes"
+            mono
+          />
+          <TextField
+            label="Día límite de pago"
+            placeholder="3"
+            maxLength={2}
+            keyboardType="number-pad"
+            value={paymentDay}
+            onChange={(v) => setPaymentDay(v.replace(/\D/g, "").slice(0, 2))}
+            suffix="del mes"
+            mono
+          />
+        </FormGroup>
+
+        <FormGroup label="Costo">
+          <TextField
+            label="CAT promedio anual"
+            placeholder="34.9"
+            value={cat}
+            onChange={(v) => setCat(v.replace(/[^0-9.]/g, ""))}
+            suffix="%"
+            keyboardType="decimal-pad"
+            mono
+          />
+        </FormGroup>
+
+        <FormGroup label="Color de la tarjeta">
+          <ColorSwatches
+            colors={COLOR_OPTIONS}
+            selected={color}
+            onSelect={setColor}
+          />
+        </FormGroup>
+
+        <InfoBox icon={<Text style={{ fontSize: 14 }}>🔒</Text>}>
+          Solo guardamos los últimos 4 dígitos. Nunca pedimos el número completo, CVV ni fecha de vencimiento.
+        </InfoBox>
+      </FormShell>
+
+      <ListPickerSheet
+        visible={pickerOpen === "bank"}
+        title="Banco emisor"
+        options={bankOptions}
+        value={bank}
+        onPick={(v) => {
+          setBank(v);
+          setPickerOpen(null);
+        }}
+        onClose={() => setPickerOpen(null)}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8F9FA",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  previewContainer: {
-    marginBottom: 24,
-  },
-  section: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: "#1F2937",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  row: {
-    flexDirection: "row",
-  },
-  colorGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  colorOption: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  colorOptionSelected: {
-    borderWidth: 3,
-    borderColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  amountInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  currencySymbol: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#6B7280",
-    marginRight: 8,
-  },
-  amountInput: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1F2937",
-    paddingVertical: 16,
-  },
-  footer: {
-    padding: 16,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-  },
-  submitButton: {
-    backgroundColor: "#7952FC",
-    borderRadius: 12,
+  cardPreview: {
+    borderRadius: 18,
     padding: 18,
-    alignItems: "center",
+    marginBottom: 16,
+    minHeight: 150,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 6,
   },
-  submitButtonDisabled: {
-    opacity: 0.6,
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
   },
-  submitButtonText: {
+  cardBank: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.75)",
+    letterSpacing: 0.5,
+    fontWeight: "500",
+  },
+  cardName: {
     fontSize: 16,
-    fontWeight: "600",
     color: "#fff",
+    fontWeight: "600",
+    marginTop: 2,
   },
+  cardNumber: {
+    fontSize: 18,
+    fontWeight: "500",
+    letterSpacing: 4,
+    color: "#fff",
+    marginTop: 22,
+  },
+  cardBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 14,
+  },
+  cardLabel: {
+    fontSize: 9,
+    color: "rgba(255,255,255,0.7)",
+    letterSpacing: 0.5,
+    fontWeight: "500",
+  },
+  cardValue: {
+    fontSize: 12,
+    color: "#fff",
+    fontWeight: "500",
+    marginTop: 1,
+  },
+  utilHead: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+  utilLabel: { fontSize: 11 },
+  utilTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
+  utilFill: { height: "100%" },
 });

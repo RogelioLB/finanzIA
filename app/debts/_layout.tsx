@@ -1,15 +1,16 @@
 import { Stack } from "expo-router";
 
-export default function WalletsLayout() {
+export default function DebtsLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
+        animation: "slide_from_right",
       }}
     >
-      <Stack.Screen name="index" />
+      <Stack.Screen name="[id]" />
       <Stack.Screen
-        name="add-wallet"
+        name="pay"
         options={{
           animation: "slide_from_bottom",
           animationDuration: 280,
