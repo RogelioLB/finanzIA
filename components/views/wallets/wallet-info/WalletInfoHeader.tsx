@@ -1,110 +1,139 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { currencies, Currency } from '../../../../constants/currencies';
-import { Wallet } from '../../../../lib/database/sqliteService';
+import { DesignIcon } from "@/components/ui/Icon";
+import { useTheme } from "@/theme/ThemeProvider";
+import { getFabContrast } from "@/theme/tokens";
+import { useRouter } from "expo-router";
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { currencies, Currency } from "@/constants/currencies";
+import { Wallet } from "@/lib/database/sqliteService";
 
 interface WalletInfoHeaderProps {
   wallet: Wallet;
 }
 
+const EMOJI_TO_ICON: Record<string, keyof typeof import("@/components/ui/Icon").DesignIcon> = {
+  "🏦": "Bank", "💳": "Card", "💰": "Cash", "👛": "Wallet",
+  "🐷": "PiggyBank", "📈": "Stocks", "🪙": "Crypto", "🛍️": "Bag",
+  "⚡": "Bolt", "🏠": "Home2", "📱": "Phone", "🎓": "Education",
+};
+
 export default function WalletInfoHeader({ wallet }: WalletInfoHeaderProps) {
   const router = useRouter();
+  const { theme, accent } = useTheme();
 
-  const getCurrencySymbol = (currency: string) => {
-    const currencyObj = currencies.find((c: Currency) => c.code === currency);
-    return currencyObj?.symbol || '$';
-  };
+  const sym = currencies.find((c: Currency) => c.code === wallet.currency)?.symbol || "$";
+  const balance = wallet.net_balance ?? wallet.balance;
+  const balanceColor = balance >= 0 ? theme.good : theme.bad;
+
+  const iconKey = EMOJI_TO_ICON[wallet.icon || ""] as string | undefined;
+  const Ico = iconKey ? (DesignIcon as any)[iconKey] : null;
+  const cardContrast = getFabContrast(wallet.color || accent);
 
   return (
-    <>
-      {/* Header */}
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={["top"]}>
+      {/* Nav bar */}
+      <View style={styles.nav}>
         <TouchableOpacity
-          style={styles.headerButton}
+          style={[styles.navBtn, { backgroundColor: theme.surfaceAlt }]}
           onPress={() => router.back()}
+          hitSlop={8}
         >
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <DesignIcon.Back size={18} color={theme.text} strokeWidth={1.8} />
         </TouchableOpacity>
-
-        <Text style={styles.headerTitle}>Detalles de Cuenta</Text>
-
+        <Text style={[styles.navTitle, { color: theme.text }]}>Detalles de cuenta</Text>
         <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => {
-            router.push(`/wallets/edit-wallet/${wallet.id}` as any);
-          }}
+          style={[styles.navBtn, { backgroundColor: theme.surfaceAlt }]}
+          onPress={() => router.push(`/wallets/edit-wallet/${wallet.id}` as any)}
+          hitSlop={8}
         >
-          <Ionicons name="create-outline" size={24} color="#7952FC" />
+          <DesignIcon.Settings size={18} color={theme.text} strokeWidth={1.8} />
         </TouchableOpacity>
       </View>
 
-      {/* Wallet Info Card */}
-      <View style={[styles.walletCard, { backgroundColor: wallet.color }]}>
-        <Text style={styles.walletIcon}>{wallet.icon}</Text>
-        <Text style={styles.walletName}>{wallet.name}</Text>
-        <Text style={styles.walletBalance}>
-          {getCurrencySymbol(wallet.currency)}{wallet.net_balance?.toFixed(2) || wallet.balance.toFixed(2)}
+      {/* Hero card */}
+      <View style={[styles.heroCard, { backgroundColor: wallet.color || accent }]}>
+        <View style={styles.heroTop}>
+          <View style={[styles.iconWrap, { backgroundColor: "rgba(255,255,255,0.18)" }]}>
+            {Ico ? (
+              <Ico size={26} color={cardContrast} strokeWidth={1.5} />
+            ) : (
+              <Text style={styles.iconEmoji}>{wallet.icon || "🏦"}</Text>
+            )}
+          </View>
+          <View style={styles.heroMeta}>
+            <Text style={[styles.heroName, { color: cardContrast }]} numberOfLines={1}>
+              {wallet.name}
+            </Text>
+            {(wallet as any).bank && (
+              <Text style={[styles.heroBank, { color: `${cardContrast}99` }]}>
+                {(wallet as any).bank}
+                {(wallet as any).last_four_digits ? ` · •••• ${(wallet as any).last_four_digits}` : ""}
+              </Text>
+            )}
+          </View>
+          <View style={[styles.currencyBadge, { backgroundColor: "rgba(255,255,255,0.18)" }]}>
+            <Text style={[styles.currencyText, { color: cardContrast }]}>{wallet.currency}</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.heroBalance, { color: cardContrast }]}>
+          {sym}{Math.abs(balance).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Text>
-        <Text style={styles.walletCurrency}>{wallet.currency}</Text>
+        <Text style={[styles.heroBalanceLabel, { color: `${cardContrast}80` }]}>
+          Balance actual
+        </Text>
       </View>
-    </>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  safe: { zIndex: 10 },
+  nav: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingVertical: 10,
   },
-  headerButton: {
-    padding: 8,
+  navBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
+  navTitle: { fontSize: 16, fontWeight: "600", letterSpacing: -0.3 },
+  heroCard: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 20,
+    padding: 20,
   },
-  editButton: {
-    padding: 8,
+  heroTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 20,
   },
-  walletCard: {
-    margin: 16,
-    padding: 24,
-    borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+  iconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  walletIcon: {
-    fontSize: 48,
-    marginBottom: 8,
+  iconEmoji: { fontSize: 26 },
+  heroMeta: { flex: 1 },
+  heroName: { fontSize: 17, fontWeight: "700", letterSpacing: -0.4 },
+  heroBank: { fontSize: 12, marginTop: 2 },
+  currencyBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
   },
-  walletName: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  walletBalance: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  walletCurrency: {
-    fontSize: 14,
-    color: '#fff',
-    opacity: 0.8,
-  },
+  currencyText: { fontSize: 12, fontWeight: "600" },
+  heroBalance: { fontSize: 36, fontWeight: "700", letterSpacing: -1 },
+  heroBalanceLabel: { fontSize: 12, marginTop: 2 },
 });

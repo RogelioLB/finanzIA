@@ -1,4 +1,5 @@
 import { currencies, Currency } from "@/constants/currencies";
+import { useTheme } from "@/theme/ThemeProvider";
 import React, { useMemo } from "react";
 import { Dimensions, StyleSheet, Text, View } from "react-native";
 import { LineChart } from "react-native-gifted-charts";
@@ -10,265 +11,138 @@ interface WalletStatsSummaryProps {
   currentBalance: number;
 }
 
-export default function WalletStatsSummary({
-  stats,
-  currency,
-  currentBalance,
-}: WalletStatsSummaryProps) {
-  const getCurrencySymbol = (currency: string) => {
-    const currencyObj = currencies.find((c: Currency) => c.code === currency);
-    return currencyObj?.symbol || "$";
-  };
+export default function WalletStatsSummary({ stats, currency, currentBalance }: WalletStatsSummaryProps) {
+  const { theme, accent } = useTheme();
+
+  const sym = currencies.find((c: Currency) => c.code === currency)?.symbol || "$";
 
   const balanceHistory = useMemo(() => {
-    // Combinar todas las transacciones y ordenarlas por fecha
     const allTransactions = [
       ...stats.incomeTransactions,
       ...stats.expenseTransactions,
     ].sort((a, b) => a.timestamp - b.timestamp);
 
-    // Función para formatear fecha con día y mes en 3 letras
-    const formatDate = (timestamp: number) => {
-      const date = new Date(timestamp);
-      const day = date.getDate();
-
-      const monthNames = [
-        "Ene",
-        "Feb",
-        "Mar",
-        "Abr",
-        "May",
-        "Jun",
-        "Jul",
-        "Ago",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dic",
-      ];
-
-      const monthAbbr = monthNames[date.getMonth()];
-
-      return `${day} ${monthAbbr}`;
+    const fmt = (ts: number) => {
+      const d = new Date(ts);
+      const months = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+      return `${d.getDate()} ${months[d.getMonth()]}`;
     };
 
     if (allTransactions.length === 0) {
-      // Si no hay transacciones, mostrar solo el balance actual
-      return [
-        {
-          value: currentBalance,
-          dataPointText:
-            getCurrencySymbol(currency) + currentBalance.toFixed(0),
-          label: "Actual",
-        },
-      ];
+      return [{ value: currentBalance, label: "Actual" }];
     }
 
-    // Filtrar transacciones excluidas (suscripciones no pagadas)
-    const includedTransactions = allTransactions.filter(t => t.is_excluded === 0);
-
-    // Calcular el balance inicial (balance actual - efecto de todas las transacciones incluidas)
-    let transactionsEffect = 0;
-    includedTransactions.forEach((transaction) => {
-      if (transaction.type === "income") {
-        transactionsEffect += transaction.amount;
-      } else if (transaction.type === "expense") {
-        transactionsEffect -= transaction.amount;
-      }
+    const included = allTransactions.filter((t) => t.is_excluded === 0);
+    let effect = 0;
+    included.forEach((t) => {
+      effect += t.type === "income" ? t.amount : -t.amount;
     });
 
-    const initialBalance = currentBalance - transactionsEffect;
-
-    // Comenzar desde el balance inicial real
-    let runningBalance = initialBalance;
-
-    // Agregar punto inicial con el balance real
-    const history = [
-      {
-        value: initialBalance,
-        dataPointText: getCurrencySymbol(currency) + initialBalance.toFixed(0),
-        label: "Inicio",
-      },
-    ];
-
-    // Procesar cada transacción cronológicamente (solo las incluidas)
-    includedTransactions.forEach((transaction, index) => {
-      if (transaction.type === "income") {
-        runningBalance += transaction.amount;
-      } else if (transaction.type === "expense") {
-        runningBalance -= transaction.amount;
-      }
-
-      history.push({
-        value: runningBalance,
-        dataPointText: getCurrencySymbol(currency) + runningBalance.toFixed(0),
-        label: formatDate(transaction.timestamp),
-      });
+    let running = currentBalance - effect;
+    const history = [{ value: running, label: "Inicio" }];
+    included.forEach((t) => {
+      running += t.type === "income" ? t.amount : -t.amount;
+      history.push({ value: running, label: fmt(t.timestamp) });
     });
-
     return history;
-  }, [
-    stats.incomeTransactions,
-    stats.expenseTransactions,
-    currency,
-    currentBalance,
-  ]);
+  }, [stats.incomeTransactions, stats.expenseTransactions, currency, currentBalance]);
 
   const screenWidth = Dimensions.get("window").width;
-  const chartWidth = screenWidth - 32; // 16px padding on each side
+  const chartWidth = screenWidth - 64;
+
+  const values = balanceHistory.map((i) => i.value);
+  const maxVal = Math.max(...values);
+  const minVal = Math.min(...values);
+  const absMax = Math.max(Math.abs(maxVal), Math.abs(minVal));
+  const chartMax = minVal >= 0 ? Math.max(maxVal * 1.2, 100) : absMax * 1.2;
+  const chartMin = minVal < 0 ? -absMax * 1.2 : 0;
+
+  const statItems = [
+    { label: "Ingresos", value: `+${sym}${stats.totalIncome.toFixed(2)}`, color: theme.good },
+    { label: "Gastos", value: `-${sym}${stats.totalExpenses.toFixed(2)}`, color: theme.bad },
+    { label: "Movimientos", value: `${stats.transactionCount}`, color: accent },
+  ];
 
   return (
-    <View>
-      {/* Gráfica de Balance Histórico */}
-      <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>Balance a través del tiempo</Text>
+    <View style={styles.wrapper}>
+      {/* Stats row */}
+      <View style={styles.statsRow}>
+        {statItems.map((s) => (
+          <View key={s.label} style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
+            <Text style={[styles.statLabel, { color: theme.textTer }]}>{s.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Line chart */}
+      <View style={[styles.chartCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Text style={[styles.chartTitle, { color: theme.text }]}>Historial de balance</Text>
         {balanceHistory.length > 1 ? (
-          <LineChart
-            isAnimated
-            data={balanceHistory}
-            width={chartWidth}
-            height={130}
-            color="#8B5CF6"
-            thickness={3}
-            dataPointsColor="#8B5CF6"
-            dataPointsRadius={4}
-            curved
-            hideYAxisText
-            hideRules
-            hideAxesAndRules={false}
-            xAxisColor="#E5E7EB"
-            xAxisLabelTextStyle={{ color: "#666", fontSize: 10 }}
-            maxValue={(() => {
-              const values = balanceHistory.map((item) => item.value);
-              const maxVal = Math.max(...values);
-              const minVal = Math.min(...values);
-
-              // Si todos los valores son positivos, usar el máximo * 1.2
-              if (minVal >= 0) {
-                return Math.max(maxVal * 1.2, 100); // Mínimo de 100 para evitar gráficas muy pequeñas
-              }
-
-              // Si hay valores negativos, usar un rango simétrico
-              const absMax = Math.max(Math.abs(maxVal), Math.abs(minVal));
-              return absMax * 1.2;
-            })()}
-            mostNegativeValue={(() => {
-              const values = balanceHistory.map((item) => item.value);
-              const minVal = Math.min(...values);
-
-              // Si hay valores negativos, establecer el valor más negativo
-              if (minVal < 0) {
-                const maxVal = Math.max(...values);
-                const absMax = Math.max(Math.abs(maxVal), Math.abs(minVal));
-                return -absMax * 1.2;
-              }
-
-              // Si todos son positivos, no hay valor negativo
-              return 0;
-            })()}
-            focusEnabled
-            showTextOnFocus
-            showStripOnFocus
-          />
+          <View style={styles.chartWrap}>
+            <LineChart
+              isAnimated
+              animationDuration={800}
+              data={balanceHistory}
+              width={chartWidth}
+              height={140}
+              color={accent}
+              thickness={2.5}
+              dataPointsColor={accent}
+              dataPointsRadius={3}
+              curved
+              hideYAxisText
+              hideRules
+              xAxisColor={theme.border}
+              yAxisColor="transparent"
+              xAxisLabelTextStyle={{ color: theme.textTer, fontSize: 9 }}
+              maxValue={chartMax}
+              mostNegativeValue={chartMin}
+              startFillColor={`${accent}30`}
+              endFillColor={`${accent}00`}
+              areaChart
+              focusEnabled
+              showTextOnFocus
+              showStripOnFocus
+              stripColor={accent}
+              stripOpacity={0.2}
+              textFontSize={10}
+              textColor={theme.textSec}
+            />
+          </View>
         ) : (
-          <View style={styles.noDataContainer}>
-            <Text style={styles.noDataText}>
-              No hay suficientes transacciones para mostrar la gráfica
+          <View style={styles.emptyChart}>
+            <Text style={[styles.emptyChartText, { color: theme.textTer }]}>
+              Agrega más transacciones para ver el historial
             </Text>
           </View>
         )}
-      </View>
-
-      {/* Estadísticas Resumidas */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Balance Actual</Text>
-          <Text style={[styles.statValue, { color: "#7952FC" }]}>
-            {getCurrencySymbol(currency)}
-            {currentBalance.toFixed(2)}
-          </Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Ingresos</Text>
-          <Text style={[styles.statValue, { color: "#4CAF50" }]}>
-            +{getCurrencySymbol(currency)}
-            {stats.totalIncome.toFixed(2)}
-          </Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Gastos</Text>
-          <Text style={[styles.statValue, { color: "#FF6B6B" }]}>
-            -{getCurrencySymbol(currency)}
-            {stats.totalExpenses.toFixed(2)}
-          </Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Transacciones</Text>
-          <Text style={styles.statValue}>{stats.transactionCount}</Text>
-        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  chartContainer: {
-    backgroundColor: "#FFFFFF",
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  chartTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  noDataContainer: {
-    height: 200,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  noDataText: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    textAlign: "center",
-  },
-  statsContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    gap: 8,
-  },
+  wrapper: { paddingHorizontal: 16, marginBottom: 8 },
+  statsRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
   statCard: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
-    padding: 16,
-    borderRadius: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
     alignItems: "center",
+    gap: 2,
   },
-  statLabel: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 4,
-    textAlign: "center",
+  statValue: { fontSize: 13, fontWeight: "700", letterSpacing: -0.3 },
+  statLabel: { fontSize: 10 },
+  chartCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 8,
   },
-  statValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
-  },
+  chartTitle: { fontSize: 14, fontWeight: "600", marginBottom: 12, letterSpacing: -0.2 },
+  chartWrap: { marginLeft: -10 },
+  emptyChart: { height: 100, alignItems: "center", justifyContent: "center" },
+  emptyChartText: { fontSize: 13, textAlign: "center" },
 });

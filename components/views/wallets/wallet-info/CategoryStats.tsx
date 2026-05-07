@@ -1,8 +1,9 @@
+import { currencies, Currency } from "@/constants/currencies";
+import { useSQLiteService } from "@/lib/database/sqliteService";
+import { useTheme } from "@/theme/ThemeProvider";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { PieChart } from "react-native-gifted-charts";
-import { currencies, Currency } from "../../../../constants/currencies";
-import { useSQLiteService } from "../../../../lib/database/sqliteService";
 import { Transaction } from "./types";
 
 interface CategoryStatsProps {
@@ -11,249 +12,125 @@ interface CategoryStatsProps {
   currency: string;
 }
 
-const CategoryStats: React.FC<CategoryStatsProps> = ({
-  transactions,
-  totalAmount,
-  currency,
-}) => {
+interface CatStat {
+  amount: number;
+  count: number;
+  percentage: number;
+  icon: string;
+  color: string;
+}
+
+export default function CategoryStats({ transactions, totalAmount, currency }: CategoryStatsProps) {
+  const { theme, accent } = useTheme();
   const { getCategoryById } = useSQLiteService();
-  const [categoryStats, setCategoryStats] = useState<{
-    [key: string]: {
-      amount: number;
-      count: number;
-      percentage: number;
-      icon: string;
-      color: string;
-    };
-  }>({});
+  const [stats, setStats] = useState<Record<string, CatStat>>({});
+
+  const sym = currencies.find((c: Currency) => c.code === currency)?.symbol || "$";
 
   useEffect(() => {
-    const calculateCategoryStats = async () => {
-      const stats: {
-        [key: string]: {
-          amount: number;
-          count: number;
-          percentage: number;
-          icon: string;
-          color: string;
-        };
-      } = {};
-
-      // Procesar transacciones de forma asíncrona
-      for (const transaction of transactions) {
-        const categoryId = transaction.category_id;
-        let categoryName = "Sin categoría";
-        let categoryIcon = "📊";
-        let categoryColor = "#8B5CF6";
-
-        if (categoryId) {
+    if (transactions.length === 0) { setStats({}); return; }
+    const calc = async () => {
+      const s: Record<string, CatStat> = {};
+      for (const t of transactions) {
+        let name = "Sin categoría", icon = "📊", color = accent;
+        if (t.category_id) {
           try {
-            const category = await getCategoryById(categoryId);
-            categoryName = category?.name || "Sin categoría";
-            categoryIcon = category?.icon || "📊";
-            categoryColor = category?.color || "#8B5CF6";
-          } catch (error) {
-            console.error("Error getting category:", error);
-          }
+            const cat = await getCategoryById(t.category_id);
+            if (cat) { name = cat.name; icon = cat.icon; color = cat.color; }
+          } catch {}
         }
-
-        if (!stats[categoryName]) {
-          stats[categoryName] = {
-            amount: 0,
-            count: 0,
-            percentage: 0,
-            icon: categoryIcon,
-            color: categoryColor,
-          };
-        }
-        stats[categoryName].amount += transaction.amount;
-        stats[categoryName].count += 1;
+        if (!s[name]) s[name] = { amount: 0, count: 0, percentage: 0, icon, color };
+        s[name].amount += t.amount;
+        s[name].count += 1;
       }
-
-      // Calcular porcentajes
-      Object.keys(stats).forEach((categoryName) => {
-        stats[categoryName].percentage =
-          totalAmount > 0
-            ? (stats[categoryName].amount / totalAmount) * 100
-            : 0;
+      Object.values(s).forEach((v) => {
+        v.percentage = totalAmount > 0 ? (v.amount / totalAmount) * 100 : 0;
       });
-
-      setCategoryStats(stats);
+      setStats(s);
     };
-
-    if (transactions.length > 0) {
-      calculateCategoryStats();
-    } else {
-      setCategoryStats({});
-    }
+    calc();
   }, [transactions, totalAmount]);
 
-  const getCurrencySymbol = (currency: string) => {
-    const currencyObj = currencies.find((c: Currency) => c.code === currency);
-    return currencyObj?.symbol || "$";
-  };
-
-  const categoryEntries = Object.entries(categoryStats)
+  const entries = Object.entries(stats)
     .sort(([, a], [, b]) => b.amount - a.amount)
-    .slice(0, 5); // Top 5 categorías
+    .slice(0, 5);
 
-  if (categoryEntries.length === 0) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Distribución por Categorías</Text>
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No hay datos de categorías</Text>
-        </View>
-      </View>
-    );
-  }
+  if (entries.length === 0) return null;
 
-  // Preparar datos para el gráfico de pastel
-  const pieData = categoryEntries.map(([categoryName, data], index) => ({
-    value: data.amount,
-    color: data.color,
-    text: `${data.percentage.toFixed(1)}%`,
+  const pieData = entries.map(([name, d]) => ({
+    value: d.amount,
+    color: d.color,
+    text: `${d.percentage.toFixed(0)}%`,
     textColor: "#fff",
-    textSize: 12,
-    fontWeight: "600",
-    category: categoryName,
-    count: data.count,
-    icon: data.icon,
+    textSize: 11,
+    category: name,
+    count: d.count,
+    icon: d.icon,
   }));
 
-  if (categoryEntries.length === 0) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Distribución por Categorías</Text>
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No hay datos para mostrar</Text>
-        </View>
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Distribución por Categorías</Text>
+    <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <Text style={[styles.title, { color: theme.text }]}>Por categoría</Text>
 
-      <View style={styles.chartContainer}>
+      <View style={styles.chartRow}>
         <PieChart
           data={pieData}
-          radius={80}
+          radius={72}
           innerRadius={40}
           showText
-          textSize={12}
+          textSize={11}
           textColor="#fff"
-          fontWeight="800"
-          showValuesAsLabels
+          fontWeight="700"
           isAnimated
-          animationDuration={1000}
+          animationDuration={800}
           centerLabelComponent={() => (
-            <View style={styles.centerLabel}>
-              <Text style={styles.centerLabelText}>Total</Text>
-              <Text style={styles.centerLabelAmount}>
-                {getCurrencySymbol(currency)}
-                {totalAmount.toFixed(0)}
+            <View style={styles.center}>
+              <Text style={[styles.centerLabel, { color: theme.textTer }]}>Total</Text>
+              <Text style={[styles.centerAmount, { color: theme.text }]}>
+                {sym}{totalAmount.toFixed(0)}
               </Text>
             </View>
           )}
         />
-      </View>
 
-      {/* Leyenda */}
-      <View style={styles.legendContainer}>
-        {pieData.map((item, index) => (
-          <View key={index} style={styles.legendItem}>
-            <View
-              style={[styles.legendColor, { backgroundColor: item.color }]}
-            />
-            <Text style={styles.legendIcon}>{item.icon}</Text>
-            <View style={styles.legendText}>
-              <Text style={styles.legendCategory}>{item.category}</Text>
-              <Text style={styles.legendDetails}>
-                {item.count} transacciones • {getCurrencySymbol(currency)}
-                {item.value.toFixed(2)}
-              </Text>
+        <View style={styles.legend}>
+          {pieData.map((item, i) => (
+            <View key={i} style={styles.legendItem}>
+              <View style={[styles.dot, { backgroundColor: item.color }]} />
+              <Text style={styles.legendIcon}>{item.icon}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.legendName, { color: theme.text }]} numberOfLines={1}>
+                  {item.category}
+                </Text>
+                <Text style={[styles.legendSub, { color: theme.textTer }]}>
+                  {sym}{item.value.toFixed(0)} · {item.count}
+                </Text>
+              </View>
             </View>
-          </View>
-        ))}
+          ))}
+        </View>
       </View>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: 12,
+  card: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    borderWidth: 1,
     padding: 16,
-    marginBottom: 24,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#000",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  chartContainer: {
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  centerLabel: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  centerLabelText: {
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "500",
-  },
-  centerLabelAmount: {
-    fontSize: 14,
-    color: "#000",
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  legendContainer: {
-    gap: 8,
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 4,
-  },
-  legendColor: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  legendIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  legendText: {
-    flex: 1,
-  },
-  legendCategory: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#000",
-  },
-  legendDetails: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 1,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 20,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#999",
-  },
+  title: { fontSize: 14, fontWeight: "600", letterSpacing: -0.2, marginBottom: 16 },
+  chartRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+  center: { alignItems: "center" },
+  centerLabel: { fontSize: 10 },
+  centerAmount: { fontSize: 12, fontWeight: "700", marginTop: 1 },
+  legend: { flex: 1, gap: 8 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  legendIcon: { fontSize: 14 },
+  legendName: { fontSize: 12, fontWeight: "500" },
+  legendSub: { fontSize: 10, marginTop: 1 },
 });
-
-export default CategoryStats;

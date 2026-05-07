@@ -1,16 +1,7 @@
+import { useTheme } from "@/theme/ThemeProvider";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  Wallet,
-  useSQLiteService,
-} from "../../../../lib/database/sqliteService";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Wallet, useSQLiteService } from "@/lib/database/sqliteService";
 import CategoryStats from "./CategoryStats";
 import TransactionList from "./TransactionList";
 import TransactionTabs from "./TransactionTabs";
@@ -23,98 +14,70 @@ interface WalletInfoProps {
   onWalletUpdate?: () => void;
 }
 
-export default function WalletInfo({
-  wallet,
-  onWalletUpdate,
-}: WalletInfoProps) {
+export default function WalletInfo({ wallet }: WalletInfoProps) {
+  const { theme, accent } = useTheme();
   const { getTransactions } = useSQLiteService();
   const [stats, setStats] = useState<WalletStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<"income" | "expenses">(
-    "expenses"
-  );
+  const [selectedTab, setSelectedTab] = useState<"income" | "expenses">("expenses");
 
-  const loadWalletStats = useCallback(async (walletId: string) => {
+  const loadStats = useCallback(async (walletId: string) => {
     try {
       setIsLoading(true);
-      // Obtener transacciones de la wallet
-      const walletTransactions = await getTransactions({ walletId });
-
-      // Filtrar transacciones excluidas (suscripciones no pagadas)
-      const includedTransactions = walletTransactions.filter(
-        (t: Transaction) => t.is_excluded === 0
-      );
-
-      // Separar por tipo (solo transacciones incluidas)
-      const incomeTransactions = includedTransactions.filter(
-        (t: Transaction) => t.type === "income"
-      );
-      const expenseTransactions = includedTransactions.filter(
-        (t: Transaction) => t.type === "expense"
-      );
-
-      // Calcular totales (solo transacciones incluidas)
-      const totalIncome = incomeTransactions.reduce(
-        (sum: number, t: Transaction) => sum + t.amount,
-        0
-      );
-      const totalExpenses = expenseTransactions.reduce(
-        (sum: number, t: Transaction) => sum + t.amount,
-        0
-      );
-
-      // Guardar los datos base sin categoryStats
+      const all = await getTransactions({ walletId });
+      const included = all.filter((t: Transaction) => t.is_excluded === 0);
+      const income = included.filter((t: Transaction) => t.type === "income");
+      const expenses = included.filter((t: Transaction) => t.type === "expense");
+      const totalIncome = income.reduce((s: number, t: Transaction) => s + t.amount, 0);
+      const totalExpenses = expenses.reduce((s: number, t: Transaction) => s + t.amount, 0);
       setStats({
         totalIncome,
         totalExpenses,
         netBalance: totalIncome - totalExpenses,
-        transactionCount: includedTransactions.length,
-        incomeTransactions,
-        expenseTransactions,
-        categoryStats: {}, // Se calculará por separado
+        transactionCount: included.length,
+        incomeTransactions: income,
+        expenseTransactions: expenses,
+        categoryStats: {},
       });
-    } catch (error) {
-      console.error("Error loading wallet stats:", error);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch {}
+    finally { setIsLoading(false); }
   }, []);
 
   useEffect(() => {
-    if (wallet?.id) {
-      loadWalletStats(wallet.id);
-    }
-  }, [wallet?.id, loadWalletStats]);
+    if (wallet?.id) loadStats(wallet.id);
+  }, [wallet?.id, loadStats]);
 
-  const currentTransactions =
-    selectedTab === "income"
-      ? stats?.incomeTransactions || []
-      : stats?.expenseTransactions || [];
+  const current = selectedTab === "income"
+    ? stats?.incomeTransactions || []
+    : stats?.expenseTransactions || [];
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.root, { backgroundColor: theme.bg }]}>
         <WalletInfoHeader wallet={wallet} />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#7952FC" />
-          <Text style={styles.loadingText}>Cargando estadísticas...</Text>
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={accent} />
+          <Text style={[styles.loadingText, { color: theme.textSec }]}>Cargando estadísticas...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.root, { backgroundColor: theme.bg }]}>
       <WalletInfoHeader wallet={wallet} />
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {stats && (
           <>
-            <WalletStatsSummary 
-              stats={stats} 
+            <WalletStatsSummary
+              stats={stats}
               currency={wallet.currency}
               currentBalance={wallet.balance + stats.netBalance}
             />
+
+            <View style={[styles.sectionHeader, { borderBottomColor: theme.divider }]}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Movimientos</Text>
+            </View>
 
             <TransactionTabs
               selectedTab={selectedTab}
@@ -122,43 +85,34 @@ export default function WalletInfo({
               incomeCount={stats.incomeTransactions.length}
               expenseCount={stats.expenseTransactions.length}
             />
+
             <CategoryStats
-              transactions={currentTransactions}
-              totalAmount={
-                selectedTab === "income"
-                  ? stats.totalIncome
-                  : stats.totalExpenses
-              }
+              transactions={current}
+              totalAmount={selectedTab === "income" ? stats.totalIncome : stats.totalExpenses}
               currency={wallet.currency}
             />
 
-            <TransactionList
-              transactions={currentTransactions}
-              currency={wallet.currency}
-            />
+            <TransactionList transactions={current} currency={wallet.currency} />
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
+  root: { flex: 1 },
+  scroll: { flex: 1 },
+  content: { paddingBottom: 40 },
+  loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14 },
+  loadingText: { fontSize: 15 },
+  sectionHeader: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    marginBottom: 4,
+    borderBottomWidth: 1,
+    marginHorizontal: 16,
+    marginBottom: 12,
   },
-  content: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: "#666",
-  },
+  sectionTitle: { fontSize: 16, fontWeight: "700", letterSpacing: -0.4 },
 });
