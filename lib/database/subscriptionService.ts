@@ -39,7 +39,13 @@ export const calculateNextPaymentDate = (
 /**
  * Convierte una transacción a formato Subscription
  */
-const transactionToSubscription = (transaction: Transaction): Subscription => {
+interface SubscriptionWithWallet extends Subscription {
+  wallet_name?: string;
+  wallet_icon?: string;
+  wallet_color?: string;
+}
+
+const transactionToSubscription = (transaction: Transaction): SubscriptionWithWallet => {
   return {
     id: transaction.id,
     created_at: transaction.created_at || Date.now(),
@@ -55,7 +61,10 @@ const transactionToSubscription = (transaction: Transaction): Subscription => {
     account_id: transaction.wallet_id,
     category_id: transaction.category_id,
     description: transaction.note,
-    allow_notifications: 1, // Por defecto permitir notificaciones
+    allow_notifications: 1,
+    wallet_name: (transaction as any).wallet_name,
+    wallet_icon: (transaction as any).wallet_icon,
+    wallet_color: (transaction as any).wallet_color,
   };
 };
 
@@ -66,7 +75,7 @@ const transactionToSubscription = (transaction: Transaction): Subscription => {
 export const getSubscriptionById = async (
   db: SQLiteDatabase,
   id: string
-): Promise<Subscription | null> => {
+): Promise<SubscriptionWithWallet | null> => {
   const transaction = await db.getFirstAsync<Transaction>(
     `SELECT t.*,
        c.name as category_name, c.icon as category_icon, c.color as category_color,
@@ -90,7 +99,7 @@ export const getSubscriptionById = async (
  */
 export const getAllSubscriptions = async (
   db: SQLiteDatabase
-): Promise<Subscription[]> => {
+): Promise<SubscriptionWithWallet[]> => {
   const transactions = await db.getAllAsync<Transaction>(
     `SELECT t.*,
        c.name as category_name, c.icon as category_icon, c.color as category_color,

@@ -63,6 +63,10 @@ export default function SubscriptionsScreen() {
   const totalSubs = subs.reduce((sum, s) => sum + Math.abs(s.amount), 0);
   const net = totalIncome - totalSubs;
   const within7 = enriched.filter(s => s.daysUntil <= 7);
+  const within7Ids = new Set(within7.map(s => s.id));
+
+  const nonUpcomingIncomes = incomes.filter(s => !within7Ids.has(s.id));
+  const nonUpcomingSubs = subs.filter(s => !within7Ids.has(s.id));
 
   const openQuickPay = (item: Subscription) => {
     setQuickPaySub(item);
@@ -189,29 +193,28 @@ export default function SubscriptionsScreen() {
             )}
 
             {/* Incomes */}
-            <Text style={[styles.sectionTitle, { paddingHorizontal: pad, marginBottom: 10 }]}>
-              Ingresos · {incomes.length}
-            </Text>
-            <View style={[styles.listCard, { marginHorizontal: pad, marginBottom: 18, backgroundColor: theme.surface, borderColor: theme.border }]}>
-              {incomes.length === 0 && (
-                <View style={styles.emptySection}>
-                  <Text style={[styles.emptySectionText, { color: theme.textTer }]}>Sin ingresos recurrentes</Text>
+            {nonUpcomingIncomes.length > 0 && (
+              <>
+                <Text style={[styles.sectionTitle, { paddingHorizontal: pad, marginBottom: 10 }]}>
+                  Ingresos · {nonUpcomingIncomes.length}
+                </Text>
+                <View style={[styles.listCard, { marginHorizontal: pad, marginBottom: 18, backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  {nonUpcomingIncomes.map((item, i) => renderRecurring({ item }))}
                 </View>
-              )}
-              {incomes.map((item, i) => renderRecurring({ item }))}
-            </View>
+              </>
+            )}
 
             {/* Subscriptions */}
             <Text style={[styles.sectionTitle, { paddingHorizontal: pad, marginBottom: 10 }]}>
-              Suscripciones · {subs.length}
+              Suscripciones · {nonUpcomingSubs.length}
             </Text>
             <View style={[styles.listCard, { marginHorizontal: pad, marginBottom: 24, backgroundColor: theme.surface, borderColor: theme.border }]}>
-              {subs.length === 0 && (
+              {nonUpcomingSubs.length === 0 && (
                 <View style={styles.emptySection}>
                   <Text style={[styles.emptySectionText, { color: theme.textTer }]}>Sin suscripciones</Text>
                 </View>
               )}
-              {subs.map((item, i) => renderRecurring({ item }))}
+              {nonUpcomingSubs.map((item, i) => renderRecurring({ item }))}
             </View>
           </View>
         }

@@ -7,6 +7,7 @@ export default function InvestmentsLayout() {
       <Stack.Screen name="add" options={{ title: 'Nueva Inversión', headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="edit/[id]" options={{ title: 'Editar Inversión', headerShown: false }} />
       <Stack.Screen name="[id]" options={{ title: 'Detalle', headerShown: false }} />
+      <Stack.Screen name="transaction/[id]" options={{ title: 'Movimiento', headerShown: false }} />
     </Stack>
   );
 }
