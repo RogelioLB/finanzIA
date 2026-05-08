@@ -58,6 +58,8 @@ export default function InvestmentTransactionScreen() {
 
     setIsSubmitting(true);
     try {
+      console.log('[InvestmentTransaction] addToInvestment:', typeof addToInvestment, 'withdrawFromInvestment:', typeof withdrawFromInvestment);
+      console.log('[InvestmentTransaction] id:', id, 'amount:', amountNum, 'walletId:', walletId);
       if (isAdd) {
         await addToInvestment(id!, amountNum, walletId);
         Toast.success("Deposito exitoso", `Se agregaron $${amountNum.toLocaleString("es-MX")} a ${investment?.name}`);
@@ -69,6 +71,7 @@ export default function InvestmentTransactionScreen() {
       await refreshInvestments();
       router.back();
     } catch (e: any) {
+      console.error('[InvestmentTransaction] Error:', e);
       Toast.error("Error", e?.message || "No se pudo completar la operacion.");
     } finally {
       setIsSubmitting(false);
