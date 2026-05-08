@@ -90,6 +90,10 @@ export const DesignIcon = {
     const { size, color, strokeWidth } = iconDefaults(props);
     return <Svg width={size} height={size} viewBox={vb} fill="none" stroke={color} strokeWidth={strokeWidth ?? 2} strokeLinecap="round"><Path d="M12 5v14M5 12h14" /></Svg>;
   },
+  Minus: (props: DesignIconProps) => {
+    const { size, color, strokeWidth } = iconDefaults(props);
+    return <Svg width={size} height={size} viewBox={vb} fill="none" stroke={color} strokeWidth={strokeWidth ?? 2} strokeLinecap="round"><Path d="M5 12h14" /></Svg>;
+  },
   Close: (props: DesignIconProps) => {
     const { size, color, strokeWidth } = iconDefaults(props);
     return <Svg width={size} height={size} viewBox={vb} fill="none" stroke={color} strokeWidth={strokeWidth ?? 1.7} strokeLinecap="round"><Path d="M6 6l12 12M18 6L6 18" /></Svg>;
@@ -97,6 +101,10 @@ export const DesignIcon = {
   Mic: (props: DesignIconProps) => {
     const { size, color, strokeWidth } = iconDefaults(props);
     return <Svg width={size} height={size} viewBox={vb} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"><Rect x="9" y="3" width="6" height="11" rx="3" /><Path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></Svg>;
+  },
+  Square: (props: DesignIconProps) => {
+    const { size, color, strokeWidth } = iconDefaults(props);
+    return <Svg width={size} height={size} viewBox={vb} fill={color} stroke={color} strokeWidth={0}><Rect x="6" y="6" width="12" height="12" rx="2" /></Svg>;
   },
   Back: (props: DesignIconProps) => {
     const { size, color, strokeWidth } = iconDefaults(props);

@@ -129,6 +129,10 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
   }));
 
   const handleVoiceRecording = async () => {
+    if (listening) {
+      await stopRecording();
+      return;
+    }
     try {
       const hasPermission = await requestPermission();
       if (!hasPermission) {
@@ -535,11 +539,15 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
               <>
                 <Animated.View style={[styles.pulseRing, styles.pulseRingOuter, { borderColor: accent }, pulseStyle]} />
                 <Animated.View style={[styles.pulseRing, styles.pulseRingInner, { backgroundColor: accent + '30' }, pulseStyle]} />
-                <DesignIcon.Mic 
-                  size={22} 
-                  color={listening ? '#fff' : (isTranscribing ? theme.textTer : theme.text)} 
-                  strokeWidth={1.7} 
-                />
+                {listening ? (
+                  <DesignIcon.Square size={20} color="#fff" strokeWidth={0} />
+                ) : (
+                  <DesignIcon.Mic 
+                    size={22} 
+                    color={isTranscribing ? theme.textTer : theme.text} 
+                    strokeWidth={1.7} 
+                  />
+                )}
               </>
             )}
           </TouchableOpacity>
