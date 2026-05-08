@@ -1,7 +1,3 @@
-import {
-  DarkTheme,
-  DefaultTheme,
-} from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -57,7 +53,7 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8F9FA" }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0A0A0A" }}>
         <ActivityIndicator size="large" color="#7952FC" />
       </View>
     );

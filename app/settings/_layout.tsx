@@ -10,6 +10,7 @@ export default function SettingsLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="widgets" />
+      <Stack.Screen name="ai" />
     </Stack>
   );
 }

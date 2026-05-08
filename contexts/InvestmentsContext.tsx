@@ -7,7 +7,12 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Investment, useInvestmentService } from "../lib/database/investmentService";
+import { shouldRefreshMarketPrices, refreshAllMarketPrices, getLastMarketUpdate, formatLastUpdate } from "../lib/services/marketService";
+
+const LAST_MARKET_UPDATE_KEY = 'lastMarketUpdate';
+const CACHE_DURATION_MS = 24 * 60 * 60 * 1000;
 
 export type InvestmentRange = '1S' | '1M' | '3M' | '6M' | '1A' | 'Todo';
 
@@ -23,8 +28,13 @@ type InvestmentsContextType = {
   totalCost: number;
   totalGain: number;
   gainPct: number;
+  lastMarketUpdate: number | null;
+  lastMarketUpdateFormatted: string;
   refreshInvestments: () => Promise<void>;
+  refreshMarketPrices: () => Promise<void>;
   getHistoryForRange: (range: InvestmentRange) => Promise<PortfolioPoint[]>;
+  addToInvestment: (investmentId: string, amount: number, walletId: string) => Promise<void>;
+  withdrawFromInvestment: (investmentId: string, amount: number, walletId: string) => Promise<void>;
 };
 
 const InvestmentsContext = createContext<InvestmentsContextType | undefined>(undefined);
@@ -42,6 +52,31 @@ export const InvestmentsProvider = ({ children }: { children: ReactNode }) => {
   const service = useInvestmentService();
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastMarketUpdate, setLastMarketUpdate] = useState<number | null>(null);
+
+  const lastMarketUpdateFormatted = useMemo(() => {
+    if (!lastMarketUpdate) return 'Nunca';
+    return formatLastUpdate(lastMarketUpdate);
+  }, [lastMarketUpdate]);
+
+  const refreshMarketPrices = useCallback(async () => {
+    try {
+      const shouldRefresh = await shouldRefreshMarketPrices();
+      
+      if (shouldRefresh) {
+        const result = await refreshAllMarketPrices(investments);
+        if (result.success) {
+          const timestamp = await getLastMarketUpdate();
+          setLastMarketUpdate(timestamp);
+        }
+      } else {
+        const timestamp = await getLastMarketUpdate();
+        setLastMarketUpdate(timestamp);
+      }
+    } catch (error) {
+      console.error("[InvestmentsContext] Error al refrescar precios de mercado:", error);
+    }
+  }, [investments]);
 
   const refreshInvestments = useCallback(async () => {
     setIsLoading(true);
@@ -49,6 +84,17 @@ export const InvestmentsProvider = ({ children }: { children: ReactNode }) => {
       await service.runDailyCompoundForAll();
       const active = await service.getActiveInvestments();
       setInvestments(active);
+      
+      const shouldRefresh = await shouldRefreshMarketPrices();
+      if (shouldRefresh && active.length > 0) {
+        await refreshAllMarketPrices(active);
+        const timestamp = Date.now();
+        await AsyncStorage.setItem(LAST_MARKET_UPDATE_KEY, timestamp.toString());
+        setLastMarketUpdate(timestamp);
+      } else {
+        const timestamp = await getLastMarketUpdate();
+        setLastMarketUpdate(timestamp);
+      }
     } catch (error) {
       console.error("[InvestmentsContext] Error al refrescar inversiones:", error);
       setInvestments([]);
@@ -57,9 +103,22 @@ export const InvestmentsProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [service]);
 
+  const addToInvestment = useCallback(async (investmentId: string, amount: number, walletId: string) => {
+    await service.addToInvestment(investmentId, amount, walletId);
+    const active = await service.getActiveInvestments();
+    setInvestments(active);
+  }, [service]);
+
+  const withdrawFromInvestment = useCallback(async (investmentId: string, amount: number, walletId: string) => {
+    await service.withdrawFromInvestment(investmentId, amount, walletId);
+    const active = await service.getActiveInvestments();
+    setInvestments(active);
+  }, [service]);
+
   useEffect(() => {
     refreshInvestments();
-  }, [refreshInvestments]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getHistoryForRange = useCallback(async (range: InvestmentRange): Promise<PortfolioPoint[]> => {
     try {
@@ -101,10 +160,15 @@ export const InvestmentsProvider = ({ children }: { children: ReactNode }) => {
       totalCost,
       totalGain,
       gainPct,
+      lastMarketUpdate,
+      lastMarketUpdateFormatted,
       refreshInvestments,
+      refreshMarketPrices,
       getHistoryForRange,
+      addToInvestment,
+      withdrawFromInvestment,
     }),
-    [investments, isLoading, totalValue, totalCost, totalGain, gainPct, refreshInvestments, getHistoryForRange]
+    [investments, isLoading, totalValue, totalCost, totalGain, gainPct, lastMarketUpdate, lastMarketUpdateFormatted, refreshInvestments, refreshMarketPrices, getHistoryForRange, addToInvestment, withdrawFromInvestment]
   );
 
   return (

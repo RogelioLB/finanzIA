@@ -9,6 +9,20 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { Investment } from '@/lib/database/investmentService';
 import { DesignIcon } from '@/components/ui/Icon';
 
+const INVESTMENT_ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string; strokeWidth?: number }>> = {
+  bond: DesignIcon.Bond,
+  bank: DesignIcon.Bank,
+  piggy: DesignIcon.PiggyBank,
+  wallet: DesignIcon.Wallet,
+  trend: DesignIcon.TrendUp,
+  cash: DesignIcon.Cash,
+};
+
+function InvestmentIcon({ iconId, size, color }: { iconId: string; size: number; color: string }) {
+  const IconComponent = INVESTMENT_ICON_MAP[iconId] ?? DesignIcon.TrendUp;
+  return <IconComponent size={size} color={color} strokeWidth={1.7} />;
+}
+
 export default function InvestmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme, accent, density } = useTheme();
@@ -115,7 +129,7 @@ export default function InvestmentDetailScreen() {
         <View style={[styles.heroCard, { marginHorizontal: pad, marginTop: 20, backgroundColor: investment.color + '22', borderRadius: 24, padding: compact ? 18 : 22, borderWidth: 1, borderColor: investment.color + '44' }]}>
           <View style={styles.heroTop}>
             <View style={[styles.heroIcon, { backgroundColor: investment.color }]}>
-              <Text style={{ fontSize: 24 }}>{investment.icon}</Text>
+              <InvestmentIcon iconId={investment.icon} size={26} color="#fff" />
             </View>
             <View style={styles.heroInfo}>
               <Text style={[styles.heroName, { color: theme.text }]}>{investment.name}</Text>

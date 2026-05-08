@@ -263,6 +263,25 @@ export default function SettingsScreen() {
           </TouchableOpacity>
 
           <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.textSec }]}>Inteligencia Artificial</Text>
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
+              onPress={() => router.push('/settings/ai')}
+            >
+              <View style={styles.currencySelector}>
+                <View style={styles.currencyInfo}>
+                  <Ionicons name="sparkles" size={22} color={accent} />
+                  <View>
+                    <Text style={[styles.currencyCode, { color: theme.text }]}>Configuración de IA</Text>
+                    <Text style={[styles.currencyName, { color: theme.textSec }]}>API keys para Whisper y Chat</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={theme.textTer} />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.textSec }]}>Exportar Datos</Text>
             <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Text style={[styles.exportDescription, { color: theme.textSec }]}>

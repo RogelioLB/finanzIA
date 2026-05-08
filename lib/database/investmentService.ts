@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useSQLiteContext } from "expo-sqlite";
 import uuid from "react-native-uuid";
 
@@ -8,6 +9,9 @@ export interface Investment {
   annual_rate: number;
   currency: string;
   wallet_id: string | null;
+  type_id: string;
+  shares: number | null;
+  is_frozen: number;
   icon: string;
   color: string;
   start_date: number;
@@ -17,6 +21,13 @@ export interface Investment {
   notes: string | null;
   created_at: number;
   updated_at: number;
+}
+
+export interface InvestmentType {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
 }
 
 export interface InvestmentHistory {
@@ -34,6 +45,7 @@ function getStartOfTodayMs(): number {
 export function useInvestmentService() {
   const db = useSQLiteContext();
 
+  return useMemo(() => {
   const getInvestments = async (filters?: { is_active?: number }): Promise<Investment[]> => {
     let query = "SELECT * FROM investments";
     const params: any[] = [];
@@ -220,6 +232,73 @@ export function useInvestmentService() {
     return { updated: updatedCount };
   };
 
+  const addToInvestment = async (
+    investmentId: string,
+    amount: number,
+    walletId: string
+  ): Promise<void> => {
+    const inv = await getInvestmentById(investmentId);
+    if (!inv) throw new Error("Investment not found");
+    if (inv.is_frozen) throw new Error("Investment is frozen");
+    if (!amount || amount <= 0) throw new Error("Amount must be positive");
+
+    const now = Date.now();
+    const newValue = inv.current_value + amount;
+
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        "INSERT INTO transactions (id, wallet_id, amount, type, title, note, timestamp, is_excluded) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [uuid.v4() as string, walletId, amount, "expense", "Deposito a inversion", `Deposito a ${inv.name}`, now, 1]
+      );
+      await db.runAsync(
+        "UPDATE wallets SET balance = balance - ?, updated_at = ? WHERE id = ?",
+        [amount, now, walletId]
+      );
+      await db.runAsync(
+        "UPDATE investments SET current_value = ?, updated_at = ? WHERE id = ?",
+        [newValue, now, investmentId]
+      );
+      await db.runAsync(
+        "INSERT INTO investment_history (id, investment_id, date, value) VALUES (?, ?, ?, ?)",
+        [uuid.v4() as string, investmentId, now, newValue]
+      );
+    });
+  };
+
+  const withdrawFromInvestment = async (
+    investmentId: string,
+    amount: number,
+    walletId: string
+  ): Promise<void> => {
+    const inv = await getInvestmentById(investmentId);
+    if (!inv) throw new Error("Investment not found");
+    if (inv.is_frozen) throw new Error("Investment is frozen");
+    if (!amount || amount <= 0) throw new Error("Amount must be positive");
+    if (amount > inv.current_value) throw new Error("Insufficient balance");
+
+    const now = Date.now();
+    const newValue = inv.current_value - amount;
+
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        "INSERT INTO transactions (id, wallet_id, amount, type, title, note, timestamp, is_excluded) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [uuid.v4() as string, walletId, amount, "income", "Retiro de inversion", `Retiro de ${inv.name}`, now, 1]
+      );
+      await db.runAsync(
+        "UPDATE wallets SET balance = balance + ?, updated_at = ? WHERE id = ?",
+        [amount, now, walletId]
+      );
+      await db.runAsync(
+        "UPDATE investments SET current_value = ?, updated_at = ? WHERE id = ?",
+        [newValue, now, investmentId]
+      );
+      await db.runAsync(
+        "INSERT INTO investment_history (id, investment_id, date, value) VALUES (?, ?, ?, ?)",
+        [uuid.v4() as string, investmentId, now, newValue]
+      );
+    });
+  };
+
   return {
     getInvestments,
     getInvestmentById,
@@ -230,5 +309,9 @@ export function useInvestmentService() {
     getInvestmentHistory,
     applyDailyCompound,
     runDailyCompoundForAll,
+    addToInvestment,
+    withdrawFromInvestment,
   };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db]);
 }

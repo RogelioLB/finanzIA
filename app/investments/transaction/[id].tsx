@@ -9,7 +9,21 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Investment } from "@/lib/database/investmentService";
 import React, { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+
+const INVESTMENT_ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string; strokeWidth?: number }>> = {
+  bond: DesignIcon.Bond,
+  bank: DesignIcon.Bank,
+  piggy: DesignIcon.PiggyBank,
+  wallet: DesignIcon.Wallet,
+  trend: DesignIcon.TrendUp,
+  cash: DesignIcon.Cash,
+};
+
+function InvestmentIcon({ iconId, size, color }: { iconId: string; size: number; color: string }) {
+  const IconComponent = INVESTMENT_ICON_MAP[iconId] ?? DesignIcon.TrendUp;
+  return <IconComponent size={size} color={color} strokeWidth={1.7} />;
+}
 
 export default function InvestmentTransactionScreen() {
   const { id, mode } = useLocalSearchParams<{ id: string; mode: string }>();
@@ -115,7 +129,7 @@ export default function InvestmentTransactionScreen() {
         <View style={[styles.balanceCard, { backgroundColor: investment.color + "22", borderColor: investment.color + "44", borderRadius: 20, padding: 20, marginBottom: 20 }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <View style={[styles.invIcon, { backgroundColor: investment.color }]}>
-              <Text style={{ fontSize: 20 }}>{investment.icon}</Text>
+              <InvestmentIcon iconId={investment.icon} size={22} color="#fff" />
             </View>
             <View>
               <Text style={{ fontSize: 11, color: theme.textSec, letterSpacing: 0.5, fontWeight: "500" }}>SALDO DISPONIBLE</Text>

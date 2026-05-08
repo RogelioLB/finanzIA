@@ -1,7 +1,7 @@
 import { SQLiteDatabase } from "expo-sqlite";
 import uuid from "react-native-uuid";
 
-const DATABASE_VERSION = 15;
+const DATABASE_VERSION = 16;
 
 export async function initDatabase(db: SQLiteDatabase): Promise<void> {
   const data = await db.getFirstAsync<{
@@ -34,9 +34,34 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       await db.execAsync("DROP TABLE IF EXISTS widget_settings");
       await db.execAsync("DROP TABLE IF EXISTS investments");
       await db.execAsync("DROP TABLE IF EXISTS investment_history");
+    } else if (__DEV__ && currentVersion === 0) {
+      // Solo la primera vez en dev: limpia tablas pero no recrea estructura cada vez
+      console.log("⚠️ Modo desarrollo: Recreando tablas desde version 0");
+      await db.execAsync("DROP TABLE IF EXISTS transaction_labels");
+      await db.execAsync("DROP TABLE IF EXISTS labels");
+      await db.execAsync("DROP TABLE IF EXISTS category_budget_limits");
+      await db.execAsync("DROP TABLE IF EXISTS transactions");
+      await db.execAsync("DROP TABLE IF EXISTS budgets");
+      await db.execAsync("DROP TABLE IF EXISTS objectives");
+      await db.execAsync("DROP TABLE IF EXISTS categories");
+      await db.execAsync("DROP TABLE IF EXISTS wallets");
+      await db.execAsync("DROP TABLE IF EXISTS credit_cards");
+      await db.execAsync("DROP TABLE IF EXISTS chat_messages");
+      await db.execAsync("DROP TABLE IF EXISTS user_settings");
+      await db.execAsync("DROP TABLE IF EXISTS widget_settings");
+      await db.execAsync("DROP TABLE IF EXISTS investments");
+      await db.execAsync("DROP TABLE IF EXISTS investment_history");
     } else if (!__DEV__ && currentVersion > 0 && currentVersion < DATABASE_VERSION) {
       console.log("📱 Producción: Actualizando esquema de base de datos de versión", currentVersion, "a", DATABASE_VERSION);
-      if (currentVersion < 15) {
+      if (currentVersion < 16) {
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS investment_types (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            icon TEXT NOT NULL,
+            color TEXT NOT NULL
+          )
+        `);
         await db.execAsync(`
           CREATE TABLE IF NOT EXISTS investments (
             id TEXT PRIMARY KEY,
@@ -45,6 +70,9 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
             annual_rate REAL NOT NULL,
             currency TEXT NOT NULL DEFAULT 'MXN',
             wallet_id TEXT,
+            type_id TEXT DEFAULT 'rfija',
+            shares REAL,
+            is_frozen INTEGER NOT NULL DEFAULT 0,
             icon TEXT NOT NULL DEFAULT '📈',
             color TEXT NOT NULL DEFAULT 'green',
             start_date INTEGER NOT NULL,
@@ -54,7 +82,8 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
             notes TEXT,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
-            FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE SET NULL
+            FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE SET NULL,
+            FOREIGN KEY (type_id) REFERENCES investment_types(id)
           )
         `);
         await db.execAsync(`
@@ -262,6 +291,9 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         annual_rate REAL NOT NULL,
         currency TEXT NOT NULL DEFAULT 'MXN',
         wallet_id TEXT,
+        type_id TEXT DEFAULT 'rfija',
+        shares REAL,
+        is_frozen INTEGER NOT NULL DEFAULT 0,
         icon TEXT NOT NULL DEFAULT '📈',
         color TEXT NOT NULL DEFAULT 'green',
         start_date INTEGER NOT NULL,
@@ -271,8 +303,26 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         notes TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE SET NULL
+        FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE SET NULL,
+        FOREIGN KEY (type_id) REFERENCES investment_types(id)
       )
+    `);
+
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS investment_types (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        icon TEXT NOT NULL,
+        color TEXT NOT NULL
+      )
+    `);
+
+    await db.execAsync(`
+      INSERT OR IGNORE INTO investment_types (id, name, icon, color) VALUES
+        ('rfija', 'Renta Fija', 'business', '#10B981'),
+        ('cetes', 'CETES', 'government', '#0A84FF'),
+        ('etf', 'ETF', 'trending-up', '#AF52DE'),
+        ('crypto', 'Crypto', 'bitcoin', '#FF6B35')
     `);
 
     await db.execAsync(`
