@@ -4,7 +4,7 @@ export default {
   expo: {
     name: IS_DEV ? 'FinanzIA (Dev)' : 'FinanzIA',
     slug: 'finance-app',
-    version: '2.0.0',
+    version: '2.0.1',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     scheme: 'finanzia',
@@ -18,7 +18,7 @@ export default {
       package: IS_DEV ? 'com.rogeliolb.finanzia.dev' : 'com.rogeliolb.finanzia',
       adaptiveIcon: {
         foregroundImage: './assets/images/adaptive-icon.png',
-        backgroundColor: '#ffffff',
+        backgroundColor: '#0F0F12',
       },
       notification: {
         icon: './assets/images/adaptive-icon.png',
@@ -39,7 +39,7 @@ export default {
           image: './assets/images/splash-icon.png',
           imageWidth: 200,
           resizeMode: 'contain',
-          backgroundColor: '#ffffff',
+          backgroundColor: '#0F0F12',
         },
       ],
       [
