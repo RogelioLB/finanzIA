@@ -1,4 +1,5 @@
 import { useUser } from "@/contexts/UserContext";
+import { useTheme } from "@/theme/ThemeProvider";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -37,6 +38,7 @@ const CURRENCIES = [
 export default function OnboardingScreen() {
   const router = useRouter();
   const { completeOnboarding } = useUser();
+  const { theme, accent } = useTheme();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("MXN");
@@ -63,52 +65,98 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={{ flexGrow: 1, padding: 24 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           {step === 0 && (
             <Animated.View
               entering={FadeIn.duration(500)}
-              style={styles.stepContainer}
+              style={{ flex: 1, justifyContent: "center" }}
             >
-              {/* Logo/Icon */}
               <Animated.View
                 entering={FadeInDown.delay(200).duration(600)}
-                style={styles.logoContainer}
+                style={{ alignItems: "center", marginBottom: 32 }}
               >
-                <View style={styles.logoCircle}>
-                  <Text style={styles.logoEmoji}>💰</Text>
+                <View
+                  style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: 60,
+                    backgroundColor: accent,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    shadowColor: accent,
+                    shadowOffset: { width: 0, height: 8 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 16,
+                    elevation: 8,
+                  }}
+                >
+                  <Text style={{ fontSize: 56 }}>💰</Text>
                 </View>
               </Animated.View>
 
-              {/* Welcome Text */}
               <Animated.View
                 entering={FadeInUp.delay(400).duration(600)}
-                style={styles.textContainer}
+                style={{ alignItems: "center", marginBottom: 40 }}
               >
-                <Text style={styles.title}>Bienvenido a FinanzIA</Text>
-                <Text style={styles.subtitle}>
+                <Text
+                  style={{
+                    fontSize: 32,
+                    fontWeight: "800",
+                    color: theme.text,
+                    textAlign: "center",
+                    marginBottom: 12,
+                  }}
+                >
+                  Bienvenido a FinanzIA
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: theme.textSec,
+                    textAlign: "center",
+                    lineHeight: 24,
+                    paddingHorizontal: 20,
+                  }}
+                >
                   Tu asistente inteligente para administrar tus finanzas personales
                 </Text>
               </Animated.View>
 
-              {/* Name Input */}
               <Animated.View
                 entering={FadeInUp.delay(600).duration(600)}
-                style={styles.inputContainer}
+                style={{ marginBottom: 32 }}
               >
-                <Text style={styles.label}>¿Cómo te llamas?</Text>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.textSec,
+                    marginBottom: 12,
+                  }}
+                >
+                  ¿Cómo te llamas?
+                </Text>
                 <TextInput
-                  style={styles.input}
+                  style={{
+                    backgroundColor: theme.surface,
+                    borderRadius: 16,
+                    padding: 20,
+                    fontSize: 18,
+                    color: theme.text,
+                    borderWidth: 2,
+                    borderColor: theme.border,
+                  }}
                   placeholder="Tu nombre"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={theme.textTer}
                   value={name}
                   onChangeText={setName}
                   autoFocus
@@ -116,20 +164,32 @@ export default function OnboardingScreen() {
                 />
               </Animated.View>
 
-              {/* Next Button */}
               <Animated.View
                 entering={FadeInUp.delay(800).duration(600)}
-                style={styles.buttonContainer}
+                style={{ marginTop: 16 }}
               >
                 <TouchableOpacity
-                  style={[
-                    styles.primaryButton,
-                    !name.trim() && styles.buttonDisabled,
-                  ]}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 12,
+                    backgroundColor: accent,
+                    borderRadius: 16,
+                    padding: 20,
+                    shadowColor: accent,
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 8,
+                    elevation: 4,
+                    opacity: !name.trim() ? 0.5 : 1,
+                  }}
                   onPress={handleNext}
                   disabled={!name.trim()}
                 >
-                  <Text style={styles.primaryButtonText}>Continuar</Text>
+                  <Text style={{ fontSize: 18, fontWeight: "600", color: "#fff" }}>
+                    Continuar
+                  </Text>
                   <Ionicons name="arrow-forward" size={20} color="#fff" />
                 </TouchableOpacity>
               </Animated.View>
@@ -139,63 +199,98 @@ export default function OnboardingScreen() {
           {step === 1 && (
             <Animated.View
               entering={SlideInRight.duration(400)}
-              style={styles.stepContainerCurrency}
+              style={{ flex: 1, paddingTop: 16 }}
             >
-              {/* Header */}
-              <View style={styles.stepHeader}>
+              <View style={{ flexDirection: "row", marginBottom: 24 }}>
                 <TouchableOpacity
-                  style={styles.backButton}
+                  style={{ padding: 8, marginLeft: -8 }}
                   onPress={() => setStep(0)}
                 >
-                  <Ionicons name="arrow-back" size={24} color="#1F2937" />
+                  <Ionicons name="arrow-back" size={24} color={theme.text} />
                 </TouchableOpacity>
               </View>
 
-              {/* Greeting */}
               <Animated.View
                 entering={FadeInDown.delay(200).duration(600)}
-                style={styles.greetingContainer}
+                style={{ marginBottom: 32 }}
               >
-                <Text style={styles.greeting}>Hola, {name} 👋</Text>
-                <Text style={styles.greetingSubtitle}>
+                <Text
+                  style={{
+                    fontSize: 28,
+                    fontWeight: "700",
+                    color: theme.text,
+                    marginBottom: 8,
+                  }}
+                >
+                  Hola, {name} 👋
+                </Text>
+                <Text style={{ fontSize: 16, color: theme.textSec }}>
                   Selecciona tu moneda principal
                 </Text>
               </Animated.View>
 
-              {/* Currency Grid */}
-              <View style={styles.currencyGrid}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: 12,
+                  marginBottom: 32,
+                }}
+              >
                 {CURRENCIES.map((curr, index) => (
                   <Animated.View
                     key={curr.code}
                     entering={FadeInUp.delay(300 + index * 50).duration(400)}
                   >
                     <TouchableOpacity
-                      style={[
-                        styles.currencyCard,
-                        currency === curr.code && styles.currencyCardSelected,
-                      ]}
+                      style={{
+                        width: (width - 48 - 24) / 2,
+                        backgroundColor: theme.surface,
+                        borderRadius: 16,
+                        padding: 16,
+                        borderWidth: 2,
+                        borderColor:
+                          currency === curr.code ? accent : theme.border,
+                        position: "relative",
+                      }}
                       onPress={() => setCurrency(curr.code)}
                     >
-                      <Text style={styles.currencyFlag}>{curr.flag}</Text>
+                      <Text style={{ fontSize: 28, marginBottom: 8 }}>
+                        {curr.flag}
+                      </Text>
                       <Text
-                        style={[
-                          styles.currencyCode,
-                          currency === curr.code && styles.currencyCodeSelected,
-                        ]}
+                        style={{
+                          fontSize: 18,
+                          fontWeight: "700",
+                          color: theme.text,
+                          marginBottom: 4,
+                        }}
                       >
                         {curr.code}
                       </Text>
                       <Text
-                        style={[
-                          styles.currencyName,
-                          currency === curr.code && styles.currencyNameSelected,
-                        ]}
+                        style={{
+                          fontSize: 12,
+                          color: theme.textSec,
+                        }}
                         numberOfLines={1}
                       >
                         {curr.name}
                       </Text>
                       {currency === curr.code && (
-                        <View style={styles.checkmark}>
+                        <View
+                          style={{
+                            position: "absolute",
+                            top: 12,
+                            right: 12,
+                            width: 24,
+                            height: 24,
+                            borderRadius: 12,
+                            backgroundColor: accent,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
                           <Ionicons name="checkmark" size={16} color="#fff" />
                         </View>
                       )}
@@ -204,20 +299,30 @@ export default function OnboardingScreen() {
                 ))}
               </View>
 
-              {/* Complete Button */}
               <Animated.View
                 entering={FadeInUp.delay(700).duration(600)}
-                style={styles.buttonContainer}
+                style={{ marginTop: 16 }}
               >
                 <TouchableOpacity
-                  style={[
-                    styles.primaryButton,
-                    isSubmitting && styles.buttonDisabled,
-                  ]}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 12,
+                    backgroundColor: accent,
+                    borderRadius: 16,
+                    padding: 20,
+                    shadowColor: accent,
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 8,
+                    elevation: 4,
+                    opacity: isSubmitting ? 0.5 : 1,
+                  }}
                   onPress={handleComplete}
                   disabled={isSubmitting}
                 >
-                  <Text style={styles.primaryButtonText}>
+                  <Text style={{ fontSize: 18, fontWeight: "600", color: "#fff" }}>
                     {isSubmitting ? "Configurando..." : "Comenzar"}
                   </Text>
                   <Ionicons name="rocket" size={20} color="#fff" />
@@ -230,174 +335,3 @@ export default function OnboardingScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8F9FA",
-  },
-  scrollContent: {
-    flexGrow: 1,
-    padding: 24,
-  },
-  stepContainer: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  stepContainerCurrency: {
-    flex: 1,
-    paddingTop: 16,
-  },
-  stepHeader: {
-    flexDirection: "row",
-    marginBottom: 24,
-  },
-  backButton: {
-    padding: 8,
-    marginLeft: -8,
-  },
-  logoContainer: {
-    alignItems: "center",
-    marginBottom: 32,
-  },
-  logoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "#7952FC",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#7952FC",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  logoEmoji: {
-    fontSize: 56,
-  },
-  textContainer: {
-    alignItems: "center",
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#1F2937",
-    textAlign: "center",
-    marginBottom: 12,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#6B7280",
-    textAlign: "center",
-    lineHeight: 24,
-    paddingHorizontal: 20,
-  },
-  inputContainer: {
-    marginBottom: 32,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 12,
-  },
-  input: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
-    fontSize: 18,
-    color: "#1F2937",
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-  },
-  buttonContainer: {
-    marginTop: 16,
-  },
-  primaryButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    backgroundColor: "#7952FC",
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: "#7952FC",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  primaryButtonText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  greetingContainer: {
-    marginBottom: 32,
-  },
-  greeting: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginBottom: 8,
-  },
-  greetingSubtitle: {
-    fontSize: 16,
-    color: "#6B7280",
-  },
-  currencyGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 32,
-  },
-  currencyCard: {
-    width: (width - 48 - 24) / 2,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-    position: "relative",
-  },
-  currencyCardSelected: {
-    borderColor: "#7952FC",
-    backgroundColor: "#F3F0FF",
-  },
-  currencyFlag: {
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  currencyCode: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginBottom: 4,
-  },
-  currencyCodeSelected: {
-    color: "#7952FC",
-  },
-  currencyName: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  currencyNameSelected: {
-    color: "#7952FC",
-  },
-  checkmark: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#7952FC",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
