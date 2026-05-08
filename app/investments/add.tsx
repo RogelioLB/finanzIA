@@ -7,8 +7,16 @@ import { DesignIcon } from '@/components/ui/Icon';
 import { useSQLiteContext } from 'expo-sqlite';
 import uuid from 'react-native-uuid';
 import { useWallets } from '@/contexts/WalletsContext';
+import { useInvestments } from '@/contexts/InvestmentsContext';
 
-const ICONS = ['📈', '💰', '🏦', '💎', '🌱', '⚡', '🎯', '💵'];
+const ICON_OPTIONS = [
+  { id: 'bond', icon: DesignIcon.Bond, label: 'Bond' },
+  { id: 'bank', icon: DesignIcon.Bank, label: 'Bank' },
+  { id: 'piggy', icon: DesignIcon.PiggyBank, label: 'Piggy' },
+  { id: 'wallet', icon: DesignIcon.Wallet, label: 'Wallet' },
+  { id: 'trend', icon: DesignIcon.TrendUp, label: 'Trend' },
+  { id: 'cash', icon: DesignIcon.Cash, label: 'Cash' },
+];
 const COLORS = ['#10B981', '#0A84FF', '#FF6B35', '#AF52DE', '#FF375F', '#FFCC00'];
 
 export default function AddInvestmentScreen() {
@@ -16,16 +24,18 @@ export default function AddInvestmentScreen() {
   const router = useRouter();
   const db = useSQLiteContext();
   const { wallets } = useWallets();
+  const { refreshInvestments } = useInvestments();
   const [name, setName] = useState('');
   const [principal, setPrincipal] = useState('');
   const [annualRate, setAnnualRate] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState('📈');
+  const [selectedIconId, setSelectedIconId] = useState('bond');
   const [selectedColor, setSelectedColor] = useState(COLORS[0]);
   const [notes, setNotes] = useState('');
   const [walletId, setWalletId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const eligibleWallets = wallets.filter(w => w.type !== 'credit');
+  const selectedIconOption = ICON_OPTIONS.find(i => i.id === selectedIconId)!;
 
   const handleSave = async () => {
     const principalNum = parseFloat(principal);
@@ -52,9 +62,9 @@ export default function AddInvestmentScreen() {
       startOfToday.setHours(0, 0, 0, 0);
 
       await db.runAsync(
-        `INSERT INTO investments (id, name, principal, annual_rate, currency, wallet_id, icon, color, start_date, current_value, last_compound_date, is_active, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, name.trim(), principalNum, rateNum, 'MXN', walletId, selectedIcon, selectedColor, now, principalNum, startOfToday.getTime(), 1, notes.trim() || null, now, now]
+        `INSERT INTO investments (id, name, principal, annual_rate, currency, wallet_id, type_id, is_frozen, icon, color, start_date, current_value, last_compound_date, is_active, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, name.trim(), principalNum, rateNum, 'MXN', walletId, 'rfija', 0, selectedIconId, selectedColor, now, principalNum, startOfToday.getTime(), 1, notes.trim() || null, now, now]
       );
 
       const historyId = uuid.v4() as string;
@@ -63,10 +73,11 @@ export default function AddInvestmentScreen() {
         [historyId, id, startOfToday.getTime(), principalNum]
       );
 
+      await refreshInvestments();
       router.back();
     } catch (error) {
       console.error('Error creating investment:', error);
-      Alert.alert('Error', 'No se pudo crear la inversión');
+      Alert.alert('Error', 'No se pudo crear la inversion');
     } finally {
       setLoading(false);
     }
@@ -122,15 +133,19 @@ export default function AddInvestmentScreen() {
         <View style={[styles.field, { marginBottom: 20 }]}>
           <Text style={[styles.label, { color: theme.textSec }]}>ICONO</Text>
           <View style={styles.iconGrid}>
-            {ICONS.map((icon) => (
-              <TouchableOpacity
-                key={icon}
-                onPress={() => setSelectedIcon(icon)}
-                style={[styles.iconBtn, { backgroundColor: selectedIcon === icon ? accent : theme.surface, borderColor: selectedIcon === icon ? accent : theme.border }]}
-              >
-                <Text style={{ fontSize: 24 }}>{icon}</Text>
-              </TouchableOpacity>
-            ))}
+            {ICON_OPTIONS.map((opt) => {
+              const IconComponent = opt.icon;
+              const isSelected = selectedIconId === opt.id;
+              return (
+                <TouchableOpacity
+                  key={opt.id}
+                  onPress={() => setSelectedIconId(opt.id)}
+                  style={[styles.iconBtn, { backgroundColor: isSelected ? accent : theme.surface, borderColor: isSelected ? accent : theme.border }]}
+                >
+                  <IconComponent size={22} color={isSelected ? '#fff' : theme.textSec} strokeWidth={1.7} />
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
