@@ -206,8 +206,7 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
     if (listening && isRecording && !isTranscribing) {
       pulseAnim.value = withSpring(1.15, { damping: 10, stiffness: 100 });
       pulseOpacity.value = withSpring(0.6, { damping: 10, stiffness: 100 });
-      const silenceThreshold = 1500;
-      const stopPromise = stopRecordingOnSilence(silenceThreshold);
+      const stopPromise = stopRecordingOnSilence({ silenceThresholdMs: 1500 });
       stopPromise.then(async (audioUri) => {
         if (!listening) return;
         if (audioUri) {

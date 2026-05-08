@@ -11,31 +11,46 @@ export interface UseVoiceRecorderReturn {
   isPaused: boolean;
   duration: number;
   uri: string | null;
+  metering: number | null;
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<string | null>;
-  stopRecordingOnSilence: (silenceThresholdMs?: number) => Promise<string | null>;
+  stopRecordingOnSilence: (options?: SilenceDetectionOptions) => Promise<string | null>;
   pauseRecording: () => Promise<void>;
   resumeRecording: () => Promise<void>;
   requestPermission: () => Promise<boolean>;
 }
 
-const SILENCE_THRESHOLD_DEFAULT = 1500;
-const POLL_INTERVAL = 150;
+export interface SilenceDetectionOptions {
+  silenceThresholdDb?: number;
+  silenceThresholdMs?: number;
+  maxDurationMs?: number;
+  minRecordingTimeMs?: number;
+}
+
+const SILENCE_THRESHOLD_DB = -50;
+const SILENCE_THRESHOLD_MS = 1500;
+const MAX_DURATION_MS = 15000;
+const MIN_RECORDING_TIME_MS = 600;
+const POLL_INTERVAL_MS = 100;
+const METERING_FALLBACK_MS = 3000;
 
 export function useVoiceRecorder(): UseVoiceRecorderReturn {
   const [uri, setUri] = useState<string | null>(null);
   const [durationState, setDurationState] = useState(0);
+  const [meteringState, setMeteringState] = useState<number | null>(null);
   const isPreparingRef = useRef(false);
   const wasRecordingRef = useRef(false);
   const lastSoundTimeRef = useRef<number>(0);
   const silenceCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const meteringStuckRef = useRef<number>(0);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const state = useAudioRecorderState(recorder);
+  const state = useAudioRecorderState(recorder, POLL_INTERVAL_MS);
 
   useEffect(() => {
     setDurationState(state.durationMillis || 0);
-  }, [state.durationMillis]);
+    setMeteringState(state.metering ?? null);
+  }, [state.durationMillis, state.metering]);
 
   const requestPermission = useCallback(async (): Promise<boolean> => {
     try {
@@ -66,10 +81,14 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
         throw new Error('Microphone permission not granted');
       }
 
-      await recorder.prepareToRecordAsync();
+      await recorder.prepareToRecordAsync({
+        ...RecordingPresets.HIGH_QUALITY,
+        isMeteringEnabled: true,
+      });
       recorder.record();
       setUri(null);
       lastSoundTimeRef.current = Date.now();
+      meteringStuckRef.current = 0;
       wasRecordingRef.current = true;
       isPreparingRef.current = false;
     } catch (error) {
@@ -100,17 +119,85 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
     }
   }, [recorder, state.isRecording]);
 
-  const stopRecordingOnSilence = useCallback(async (silenceThresholdMs: number = SILENCE_THRESHOLD_DEFAULT): Promise<string | null> => {
+  const stopRecordingOnSilence = useCallback(async (options?: SilenceDetectionOptions): Promise<string | null> => {
+    const {
+      silenceThresholdDb = SILENCE_THRESHOLD_DB,
+      silenceThresholdMs = SILENCE_THRESHOLD_MS,
+      maxDurationMs = MAX_DURATION_MS,
+      minRecordingTimeMs = MIN_RECORDING_TIME_MS,
+    } = options || {};
+
     return new Promise((resolve) => {
-      lastSoundTimeRef.current = Date.now();
+      const startTime = Date.now();
+      let lastSoundTime = startTime;
+      let lastMeteringValue = -160;
+      let meteringStuckCount = 0;
+      let useFallback = false;
 
       silenceCheckIntervalRef.current = setInterval(async () => {
         const now = Date.now();
-        if (state.durationMillis > 0) {
-          lastSoundTimeRef.current = now;
+        const elapsed = now - startTime;
+        const currentMetering = state.metering ?? -160;
+        const currentDuration = state.durationMillis;
+
+        if (currentMetering > lastMeteringValue && currentMetering > -160) {
+          lastSoundTime = now;
+          lastMeteringValue = currentMetering;
+          meteringStuckCount = 0;
+        } else {
+          meteringStuckCount++;
         }
 
-        if (now - lastSoundTimeRef.current >= silenceThresholdMs) {
+        const silenceDuration = now - lastSoundTime;
+
+        if (useFallback) {
+          if (currentDuration > 0 && silenceDuration >= silenceThresholdMs) {
+            if (silenceCheckIntervalRef.current) {
+              clearInterval(silenceCheckIntervalRef.current);
+              silenceCheckIntervalRef.current = null;
+            }
+            try {
+              wasRecordingRef.current = false;
+              if (state.isRecording) {
+                await recorder.stop();
+              }
+              const recordedUri = recorder.uri;
+              setUri(recordedUri);
+              resolve(recordedUri);
+            } catch (error) {
+              console.error('[useVoiceRecorder] Stop on silence error:', error);
+              resolve(null);
+            }
+            return;
+          }
+        } else {
+          if (currentMetering >= silenceThresholdDb && elapsed >= minRecordingTimeMs && silenceDuration >= silenceThresholdMs) {
+            if (silenceCheckIntervalRef.current) {
+              clearInterval(silenceCheckIntervalRef.current);
+              silenceCheckIntervalRef.current = null;
+            }
+            try {
+              wasRecordingRef.current = false;
+              if (state.isRecording) {
+                await recorder.stop();
+              }
+              const recordedUri = recorder.uri;
+              setUri(recordedUri);
+              resolve(recordedUri);
+            } catch (error) {
+              console.error('[useVoiceRecorder] Stop on silence error:', error);
+              resolve(null);
+            }
+            return;
+          }
+
+          if (meteringStuckCount * POLL_INTERVAL_MS >= METERING_FALLBACK_MS && currentMetering <= -160) {
+            useFallback = true;
+            console.log('[useVoiceRecorder] Metering stuck at -160, switching to duration-based fallback');
+          }
+        }
+
+        if (elapsed >= maxDurationMs) {
           if (silenceCheckIntervalRef.current) {
             clearInterval(silenceCheckIntervalRef.current);
             silenceCheckIntervalRef.current = null;
@@ -124,13 +211,13 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
             setUri(recordedUri);
             resolve(recordedUri);
           } catch (error) {
-            console.error('[useVoiceRecorder] Stop on silence error:', error);
+            console.error('[useVoiceRecorder] Max duration error:', error);
             resolve(null);
           }
         }
-      }, POLL_INTERVAL);
+      }, POLL_INTERVAL_MS);
     });
-  }, [recorder, state.isRecording, state.durationMillis]);
+  }, [recorder, state.isRecording, state.metering, state.durationMillis]);
 
   const pauseRecording = useCallback(async () => {
   }, []);
@@ -142,6 +229,7 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
     isRecording: state.isRecording || false,
     isPaused: false,
     duration: durationState,
+    metering: meteringState,
     uri,
     startRecording,
     stopRecording,
