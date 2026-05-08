@@ -526,11 +526,11 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
         <View style={styles.footer}>
           <TouchableOpacity 
             onPress={toggleVoice} 
-            disabled={isTranscribing || listening}
+            disabled={isTranscribing}
             style={[
               styles.micBtn, 
-              { backgroundColor: isTranscribing || listening ? theme.surfaceAlt : theme.surface },
-              (isTranscribing || listening) && styles.micBtnDisabled
+              { backgroundColor: isTranscribing ? theme.surfaceAlt : theme.surface },
+              isTranscribing && styles.micBtnDisabled
             ]}
           >
             {isTranscribing ? (
