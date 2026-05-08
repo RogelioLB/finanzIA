@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/theme/ThemeProvider';
 import { DesignIcon } from '@/components/ui/Icon';
 import { MXN } from '@/theme/format';
@@ -10,6 +11,11 @@ import { useCategories } from '@/hooks/useCategories';
 import { useWallets } from '@/contexts/WalletsContext';
 import { Toast } from '@/components/ui/Toast';
 import ClockTimePicker from '@/components/views/forms/ClockTimePicker';
+import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
+import { transcribeAudio } from '@/lib/services/voice/transcriptionService';
+import { parseVoiceTransaction, Category } from '@/lib/services/voice/transactionParserService';
+
+const AI_CONFIG_KEY = 'ai_config';
 
 interface QuickExpenseSheetProps {
   visible: boolean;
@@ -52,6 +58,15 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
   const [timestamp, setTimestamp] = useState(Date.now());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showClock, setShowClock] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
+  const {
+    isRecording,
+    startRecording,
+    stopRecordingOnSilence,
+    stopRecording,
+    requestPermission,
+  } = useVoiceRecorder();
 
   const toggleRef = useRef<View>(null);
   const expenseBtnRef = useRef<View>(null);
@@ -113,22 +128,128 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
     opacity: pulseOpacity.value,
   }));
 
+  const handleVoiceRecording = async () => {
+    try {
+      const hasPermission = await requestPermission();
+      if (!hasPermission) {
+        Toast.error('Sin permiso', 'Por favor permite el acceso al micrófono');
+        return;
+      }
+
+      setListening(true);
+      await startRecording();
+    } catch (error) {
+      console.error('[QuickExpense] Voice recording error:', error);
+      setListening(false);
+      Toast.error('Error', 'No se pudo iniciar la grabación');
+    }
+  };
+
+  const processVoiceTransaction = async (audioUri: string, apiKey: string) => {
+    try {
+      setIsTranscribing(true);
+
+      const text = await transcribeAudio(audioUri, apiKey);
+      
+      if (!text || text.trim().length < 3) {
+        Toast.error('Sin audio', 'No se entendió la grabación. Intenta de nuevo.');
+        return;
+      }
+      
+      const categoryList: Category[] = categories.map(c => ({
+        id: c.id,
+        name: c.name,
+        type: c.type,
+      }));
+
+      const result = await parseVoiceTransaction(text, apiKey, categoryList);
+
+      const numAmount = parseFloat(result.amount);
+      if (isNaN(numAmount) || numAmount <= 0) {
+        Toast.error('Sin monto', 'No se detectó un monto válido. Intenta de nuevo.');
+        return;
+      }
+
+      setAmount(result.amount);
+      
+      if (result.categoryId) {
+        setCategoryId(result.categoryId);
+      } else {
+        const matchedCategory = categories.find(
+          c => c.name === result.category && c.type === result.type
+        );
+        if (matchedCategory) {
+          setCategoryId(matchedCategory.id);
+        }
+      }
+
+      if (result.note) {
+        setNote(result.note);
+        setNoteOpen(true);
+      }
+
+      if (result.type !== kind) {
+        setKind(result.type);
+      }
+
+      Toast.success('Listo', `Transacción: ${result.amount} - ${result.category}`);
+    } catch (error) {
+      console.error('[QuickExpense] Transcription error:', error);
+      Toast.error('Error', 'No se pudo procesar la voz');
+    } finally {
+      setIsTranscribing(false);
+      setListening(false);
+    }
+  };
+
   useEffect(() => {
-    if (listening) {
+    if (listening && isRecording && !isTranscribing) {
       pulseAnim.value = withSpring(1.15, { damping: 10, stiffness: 100 });
       pulseOpacity.value = withSpring(0.6, { damping: 10, stiffness: 100 });
-      const timeout = setTimeout(() => {
-        setAmount('245');
-        if (kind === 'expense' && expenseCategories.length > 0) setCategoryId(expenseCategories[0].id);
-        setNote(kind === 'expense' ? 'Comida rápida' : 'Sueldo quincenal');
-        setNoteOpen(true);
-        setListening(false);
-        pulseAnim.value = withSpring(1, { damping: 15, stiffness: 150 });
-        pulseOpacity.value = withSpring(0, { damping: 15, stiffness: 150 });
-      }, 1800);
-      return () => clearTimeout(timeout);
+      const silenceThreshold = 1500;
+      const stopPromise = stopRecordingOnSilence(silenceThreshold);
+      stopPromise.then(async (audioUri) => {
+        if (!listening) return;
+        if (audioUri) {
+          try {
+            const stored = await AsyncStorage.getItem(AI_CONFIG_KEY);
+            if (stored) {
+              const config = JSON.parse(stored);
+              const apiKey = config.openaiApiKey || config.anthropicApiKey;
+              if (apiKey) {
+                await processVoiceTransaction(audioUri, apiKey);
+              } else {
+                Toast.error('Sin API key', 'Configura tu API key de IA en Ajustes');
+                setListening(false);
+              }
+            } else {
+              Toast.error('Sin API key', 'Configura tu API key de IA en Ajustes');
+              setListening(false);
+            }
+          } catch (error) {
+            console.error('[QuickExpense] Stop recording error:', error);
+            setListening(false);
+          }
+        }
+      });
+      return () => {
+        stopRecording();
+      };
     }
-  }, [listening]);
+  }, [listening, isRecording, isTranscribing]);
+
+  useEffect(() => {
+    if (listening && isRecording) {
+      const interval = setInterval(() => {
+        pulseAnim.value = withSpring(pulseAnim.value === 1 ? 1.15 : 1, { damping: 10, stiffness: 100 });
+        pulseOpacity.value = withSpring(pulseOpacity.value === 0 ? 0.6 : 0, { damping: 10, stiffness: 100 });
+      }, 800);
+      return () => clearInterval(interval);
+    } else if (!listening) {
+      pulseAnim.value = withSpring(1);
+      pulseOpacity.value = withSpring(0);
+    }
+  }, [listening, isRecording]);
 
   const selectedWallet = useMemo(
     () => wallets.find(w => w.id === walletId) || wallets[0] || null,
@@ -196,7 +317,7 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
     }
   }, [amount, kind, categoryId, selectedWallet, selectedCategory, note, timestamp, createTransaction, handleClose]);
 
-  const toggleVoice = () => setListening(true);
+  const toggleVoice = () => handleVoiceRecording();
 
   const layout = numpadStyle === 'phone'
     ? ['1','2','3','4','5','6','7','8','9','.','0','⌫']
@@ -400,9 +521,28 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
         </View>
 
         <View style={styles.footer}>
-          <TouchableOpacity onPress={toggleVoice} style={[styles.micBtn, { backgroundColor: theme.surfaceAlt }]}>
-            <Animated.View style={[styles.pulseRing, { borderColor: accent }, pulseStyle]} />
-            <DesignIcon.Mic size={20} color={listening ? fabIconColor : theme.text} strokeWidth={1.7} />
+          <TouchableOpacity 
+            onPress={toggleVoice} 
+            disabled={isTranscribing || listening}
+            style={[
+              styles.micBtn, 
+              { backgroundColor: isTranscribing || listening ? theme.surfaceAlt : theme.surface },
+              (isTranscribing || listening) && styles.micBtnDisabled
+            ]}
+          >
+            {isTranscribing ? (
+              <ActivityIndicator size="small" color={accent} />
+            ) : (
+              <>
+                <Animated.View style={[styles.pulseRing, styles.pulseRingOuter, { borderColor: accent }, pulseStyle]} />
+                <Animated.View style={[styles.pulseRing, styles.pulseRingInner, { backgroundColor: accent + '30' }, pulseStyle]} />
+                <DesignIcon.Mic 
+                  size={22} 
+                  color={listening ? '#fff' : (isTranscribing ? theme.textTer : theme.text)} 
+                  strokeWidth={1.7} 
+                />
+              </>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             disabled={!valid}
@@ -596,10 +736,21 @@ const styles = StyleSheet.create({
     width: 52, height: 52, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center',
   },
+  micBtnDisabled: {
+    opacity: 0.5,
+  },
   pulseRing: {
     position: 'absolute',
     width: 48, height: 48, borderRadius: 24,
     borderWidth: 2,
+  },
+  pulseRingOuter: {
+    width: 56, height: 56, borderRadius: 28,
+    borderWidth: 3,
+  },
+  pulseRingInner: {
+    width: 44, height: 44, borderRadius: 22,
+    borderWidth: 0,
   },
   saveBtn: {
     flex: 1,
