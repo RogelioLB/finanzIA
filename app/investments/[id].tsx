@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +7,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { MXN, MXN_decimal } from '@/theme/format';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Investment } from '@/lib/database/investmentService';
+import { DesignIcon } from '@/components/ui/Icon';
 
 export default function InvestmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -180,7 +182,7 @@ export default function InvestmentDetailScreen() {
           </View>
         </View>
 
-        {history.length > 0 && (
+{history.length > 0 && (
           <View style={[styles.historySection, { marginHorizontal: pad, marginTop: 20 }]}>
             <Text style={[styles.sectionTitle, { color: theme.textSec }]}>HISTORIAL RECIENTE</Text>
             <View style={[styles.historyList, { backgroundColor: theme.surface, borderColor: theme.border, borderRadius: 16, marginTop: 8, borderWidth: 1, overflow: 'hidden' }]}>
@@ -196,12 +198,33 @@ export default function InvestmentDetailScreen() {
           </View>
         )}
 
+        {!investment.is_frozen && (
+          <View style={[styles.actionRow, { marginHorizontal: pad, marginTop: 20, gap: 12 }]}>
+            <TouchableOpacity
+              onPress={() => router.push('/investments/transaction/' + id as any + '?mode=add')}
+              style={[styles.actionBtn, { backgroundColor: theme.surface, borderColor: theme.border, borderRadius: 16, padding: 16, flex: 1, alignItems: 'center' }]}
+            >
+              <DesignIcon.Plus size={22} color={theme.good} strokeWidth={2} />
+              <Text style={{ color: theme.text, fontWeight: '600', fontSize: 14, marginTop: 6 }}>Agregar</Text>
+            </TouchableOpacity>
+            {investment.current_value > 0 && (
+              <TouchableOpacity
+                onPress={() => router.push('/investments/transaction/' + id as any + '?mode=withdraw')}
+                style={[styles.actionBtn, { backgroundColor: theme.surface, borderColor: theme.border, borderRadius: 16, padding: 16, flex: 1, alignItems: 'center' }]}
+              >
+                <DesignIcon.Minus size={22} color={theme.bad} strokeWidth={2} />
+                <Text style={{ color: theme.text, fontWeight: '600', fontSize: 14, marginTop: 6 }}>Retirar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         <TouchableOpacity
           onPress={handleDelete}
           style={[styles.deleteBtn, { marginHorizontal: pad, marginTop: 24, borderColor: theme.bad + '44', borderRadius: 16, borderWidth: 1, paddingVertical: 14, alignItems: 'center' }]}
         >
-          <Text style={{ fontSize: 18 }}>🗑</Text>
-          <Text style={[styles.deleteBtnText, { color: theme.bad, marginLeft: 8 }]}>Eliminar inversión</Text>
+          <Ionicons name="trash-outline" size={20} color={theme.bad} />
+          <Text style={[styles.deleteBtnText, { color: theme.bad, marginLeft: 8 }]}>Eliminar inversion</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -239,4 +262,6 @@ const styles = StyleSheet.create({
   historyValue: { fontSize: 13, fontWeight: '600' },
   deleteBtn: { flexDirection: 'row', justifyContent: 'center' },
   deleteBtnText: { fontSize: 14, fontWeight: '500' },
+  actionRow: { flexDirection: 'row' },
+  actionBtn: {},
 });
