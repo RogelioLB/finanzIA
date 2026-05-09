@@ -9,6 +9,7 @@ export default function CreditCardsLayout() {
       }}
     >
       <Stack.Screen name="index" />
+      <Stack.Screen name="[id]" />
       <Stack.Screen
         name="add"
         options={{
@@ -19,6 +20,15 @@ export default function CreditCardsLayout() {
         }}
       />
       <Stack.Screen name="edit/[id]" />
+      <Stack.Screen
+        name="installments/add"
+        options={{
+          animation: "slide_from_bottom",
+          animationDuration: 280,
+          gestureEnabled: true,
+          gestureDirection: "vertical",
+        }}
+      />
     </Stack>
   );
 }

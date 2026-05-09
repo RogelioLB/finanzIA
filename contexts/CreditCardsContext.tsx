@@ -1,5 +1,12 @@
 import { useWallets } from "./WalletsContext";
 import { Wallet } from "@/lib/database/sqliteService";
+import { useSQLiteService } from "@/lib/database/sqliteService";
+import {
+  CreditInstallment,
+  CreateInstallmentParams,
+  PeriodInfo,
+  useCreditCardService,
+} from "@/lib/database/creditCardService";
 import React, {
   createContext,
   useCallback,
@@ -11,6 +18,8 @@ import React, {
 // DEPRECATED: Credit cards are now wallets with type='credit'
 // This context wraps WalletsContext for backward compatibility
 
+export type { CreditInstallment };
+
 export interface CreditCard {
   id: string;
   name: string;
@@ -21,6 +30,7 @@ export interface CreditCard {
   cut_off_day: number;
   payment_due_day: number;
   interest_rate: number;
+  previous_balance: number;
   color: string | null;
   icon: string | null;
   is_archived: number;
@@ -43,6 +53,7 @@ interface CreateCreditCardParams {
   cut_off_day: number;
   payment_due_day: number;
   interest_rate?: number;
+  previous_balance?: number;
   color?: string;
   icon?: string;
 }
@@ -56,6 +67,7 @@ interface UpdateCreditCardParams {
   cut_off_day?: number;
   payment_due_day?: number;
   interest_rate?: number;
+  previous_balance?: number;
   color?: string;
   icon?: string;
 }
@@ -67,6 +79,7 @@ interface CreditCardsContextType {
   totalCreditLimit: number;
   totalBalance: number;
   totalAvailableCredit: number;
+  installmentsByCard: Record<string, CreditInstallment[]>;
   refreshCreditCards: () => Promise<void>;
   createCreditCard: (params: CreateCreditCardParams) => Promise<string>;
   updateCreditCard: (id: string, params: UpdateCreditCardParams) => Promise<void>;
@@ -74,6 +87,10 @@ interface CreditCardsContextType {
   addPayment: (id: string, amount: number) => Promise<void>;
   addCharge: (id: string, amount: number) => Promise<void>;
   getCreditCardById: (id: string) => CreditCard | undefined;
+  createInstallment: (params: CreateInstallmentParams) => Promise<void>;
+  deleteInstallment: (id: string, walletId: string) => Promise<void>;
+  markInstallmentPaid: (id: string, walletId: string) => Promise<void>;
+  getPeriodInfo: (cardId: string) => Promise<PeriodInfo | null>;
 }
 
 const CreditCardsContext = createContext<CreditCardsContextType | undefined>(undefined);
@@ -90,7 +107,6 @@ interface CreditCardsProviderProps {
   children: React.ReactNode;
 }
 
-// Función para calcular la próxima fecha de corte
 const getNextCutOffDate = (cutOffDay: number | undefined): Date => {
   const today = new Date();
   const currentMonth = today.getMonth();
@@ -104,7 +120,6 @@ const getNextCutOffDate = (cutOffDay: number | undefined): Date => {
   return nextCutOff;
 };
 
-// Función para calcular la próxima fecha de pago basada en la fecha de corte
 const getNextPaymentDate = (
   paymentDueDay: number | undefined,
   cutOffDay: number | undefined,
@@ -112,25 +127,17 @@ const getNextPaymentDate = (
 ): Date => {
   const payDay = paymentDueDay || 15;
   const cutDay = cutOffDay || 1;
-
-  // Obtener el mes y año de la fecha de corte calculada
   const cutOffMonth = nextCutOffDate.getMonth();
   const cutOffYear = nextCutOffDate.getFullYear();
 
-  // Si el día de pago es mayor que el día de corte, el pago es en el mismo mes
-  // Si el día de pago es menor o igual que el día de corte, el pago es en el mes siguiente
   if (payDay > cutDay) {
-    // Pago en el mismo mes que el corte (ej: corte 13, pago 23)
     return new Date(cutOffYear, cutOffMonth, payDay);
   } else {
-    // Pago en el mes siguiente al corte (ej: corte 25, pago 5)
     return new Date(cutOffYear, cutOffMonth + 1, payDay);
   }
 };
 
-// Convertir Wallet (type='credit') a CreditCard
 const walletToCreditCard = (wallet: Wallet): CreditCard => {
-  // Usar net_balance (calculado desde transacciones) para obtener la deuda actual
   const currentDebt = wallet.net_balance !== undefined ? wallet.net_balance : wallet.balance;
   const available_credit = Math.max(0, (wallet.credit_limit || 0) - currentDebt);
   const utilization_percentage = (wallet.credit_limit || 0) > 0
@@ -159,6 +166,7 @@ const walletToCreditCard = (wallet: Wallet): CreditCard => {
     cut_off_day: wallet.cut_off_day || 1,
     payment_due_day: wallet.payment_due_day || 15,
     interest_rate: wallet.interest_rate || 0,
+    previous_balance: wallet.previous_balance || 0,
     color: wallet.color || null,
     icon: wallet.icon || null,
     is_archived: wallet.is_archived || 0,
@@ -174,22 +182,43 @@ const walletToCreditCard = (wallet: Wallet): CreditCard => {
 
 export const CreditCardsProvider: React.FC<CreditCardsProviderProps> = ({ children }) => {
   const { wallets, isLoading, refreshWallets, createWallet, updateWallet, deleteWallet } = useWallets();
+  const { createTransaction } = useSQLiteService();
+  const creditCardService = useCreditCardService();
   const [error, setError] = useState<string | null>(null);
+  const [installmentsByCard, setInstallmentsByCard] = useState<Record<string, CreditInstallment[]>>({});
 
-  // Filtrar solo wallets de tipo 'credit'
   const creditCards: CreditCard[] = wallets
     .filter(w => w.type === 'credit' && !w.is_archived)
     .map(walletToCreditCard);
+
+  const loadInstallments = useCallback(async () => {
+    try {
+      const all = await creditCardService.getAllInstallments();
+      const byCard: Record<string, CreditInstallment[]> = {};
+      for (const inst of all) {
+        if (!byCard[inst.wallet_id]) byCard[inst.wallet_id] = [];
+        byCard[inst.wallet_id].push(inst);
+      }
+      setInstallmentsByCard(byCard);
+    } catch (err) {
+      console.error("Error loading installments:", err);
+    }
+  }, [creditCardService]);
+
+  useEffect(() => {
+    loadInstallments();
+  }, [loadInstallments]);
 
   const refreshCreditCards = useCallback(async () => {
     try {
       setError(null);
       await refreshWallets();
+      await loadInstallments();
     } catch (err) {
       console.error("Error refreshing credit cards:", err);
       setError("Error al cargar las tarjetas de crédito");
     }
-  }, [refreshWallets]);
+  }, [refreshWallets, loadInstallments]);
 
   const createCreditCard = useCallback(
     async (params: CreateCreditCardParams) => {
@@ -208,6 +237,7 @@ export const CreditCardsProvider: React.FC<CreditCardsProviderProps> = ({ childr
           cut_off_day: params.cut_off_day,
           payment_due_day: params.payment_due_day,
           interest_rate: params.interest_rate,
+          previous_balance: params.previous_balance || 0,
         });
         return id;
       } catch (err) {
@@ -234,6 +264,7 @@ export const CreditCardsProvider: React.FC<CreditCardsProviderProps> = ({ childr
           cut_off_day: params.cut_off_day,
           payment_due_day: params.payment_due_day,
           interest_rate: params.interest_rate,
+          previous_balance: params.previous_balance,
         });
       } catch (err) {
         console.error("Error updating credit card:", err);
@@ -263,7 +294,6 @@ export const CreditCardsProvider: React.FC<CreditCardsProviderProps> = ({ childr
       try {
         const card = creditCards.find(c => c.id === id);
         if (!card) throw new Error("Tarjeta no encontrada");
-
         const newBalance = Math.max(0, card.current_balance - amount);
         await updateCreditCard(id, { current_balance: newBalance });
       } catch (err) {
@@ -279,7 +309,6 @@ export const CreditCardsProvider: React.FC<CreditCardsProviderProps> = ({ childr
       try {
         const card = creditCards.find(c => c.id === id);
         if (!card) throw new Error("Tarjeta no encontrada");
-
         const newBalance = card.current_balance + amount;
         await updateCreditCard(id, { current_balance: newBalance });
       } catch (err) {
@@ -297,6 +326,72 @@ export const CreditCardsProvider: React.FC<CreditCardsProviderProps> = ({ childr
     [creditCards]
   );
 
+  const createInstallment = useCallback(
+    async (params: CreateInstallmentParams) => {
+      try {
+        await creditCardService.createInstallment(params);
+        await loadInstallments();
+      } catch (err) {
+        console.error("Error creating installment:", err);
+        throw err;
+      }
+    },
+    [creditCardService, loadInstallments]
+  );
+
+  const deleteInstallment = useCallback(
+    async (id: string, _walletId: string) => {
+      try {
+        await creditCardService.deleteInstallment(id);
+        await loadInstallments();
+      } catch (err) {
+        console.error("Error deleting installment:", err);
+        throw err;
+      }
+    },
+    [creditCardService, loadInstallments]
+  );
+
+  const markInstallmentPaid = useCallback(
+    async (id: string, walletId: string) => {
+      try {
+        const cardInstallments = installmentsByCard[walletId] || [];
+        const installment = cardInstallments.find(i => i.id === id);
+        if (!installment) throw new Error("Cuota no encontrada");
+        if (installment.paid_installments >= installment.total_installments) return;
+
+        const cuotaNum = installment.paid_installments + 1;
+        await creditCardService.incrementPaidInstallments(id);
+        await createTransaction({
+          wallet_id: walletId,
+          type: "income",
+          amount: installment.monthly_amount,
+          title: `Cuota ${cuotaNum}/${installment.total_installments} — ${installment.title}`,
+          timestamp: Date.now(),
+        });
+        await refreshCreditCards();
+      } catch (err) {
+        console.error("Error marking installment paid:", err);
+        throw err;
+      }
+    },
+    [installmentsByCard, creditCardService, createTransaction, refreshCreditCards]
+  );
+
+  const getPeriodInfo = useCallback(
+    async (cardId: string): Promise<PeriodInfo | null> => {
+      try {
+        const card = getCreditCardById(cardId);
+        if (!card) return null;
+        return await creditCardService.calculatePeriodInfo(cardId, card.cut_off_day);
+      } catch (err) {
+        console.error("Error getting period info:", err);
+        return null;
+      }
+    },
+    [getCreditCardById, creditCardService]
+  );
+
   const totalCreditLimit = creditCards.reduce((sum, card) => sum + card.credit_limit, 0);
   const totalBalance = creditCards.reduce((sum, card) => sum + card.current_balance, 0);
   const totalAvailableCredit = creditCards.reduce((sum, card) => sum + (card.available_credit || 0), 0);
@@ -308,6 +403,7 @@ export const CreditCardsProvider: React.FC<CreditCardsProviderProps> = ({ childr
     totalCreditLimit,
     totalBalance,
     totalAvailableCredit,
+    installmentsByCard,
     refreshCreditCards,
     createCreditCard,
     updateCreditCard,
@@ -315,6 +411,10 @@ export const CreditCardsProvider: React.FC<CreditCardsProviderProps> = ({ childr
     addPayment,
     addCharge,
     getCreditCardById,
+    createInstallment,
+    deleteInstallment,
+    markInstallmentPaid,
+    getPeriodInfo,
   };
 
   return (

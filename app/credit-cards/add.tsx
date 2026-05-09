@@ -27,6 +27,7 @@ export default function AddCreditCardScreen() {
   const [holder, setHolder] = useState("");
   const [limit, setLimit] = useState("");
   const [balance, setBalance] = useState("");
+  const [previousBalance, setPreviousBalance] = useState("");
   const [cutoffDay, setCutoffDay] = useState("");
   const [paymentDay, setPaymentDay] = useState("");
   const [cat, setCat] = useState("");
@@ -73,6 +74,7 @@ export default function AddCreditCardScreen() {
         cut_off_day: cutoffN,
         payment_due_day: paymentN,
         interest_rate: cat ? parseFloat(cat) : undefined,
+        previous_balance: parseFloat(previousBalance) || 0,
         color,
       });
       Toast.success("¡Tarjeta creada!", "La tarjeta de crédito se creó correctamente.");
@@ -199,10 +201,20 @@ export default function AddCreditCardScreen() {
             mono
           />
           <TextField
-            label="Saldo actual usado"
+            label="Saldo del ciclo actual"
             placeholder="0"
             value={balance}
             onChange={(v) => setBalance(v.replace(/[^0-9.]/g, ""))}
+            prefix="$"
+            suffix="MXN"
+            keyboardType="decimal-pad"
+            mono
+          />
+          <TextField
+            label="Deuda de ciclos anteriores"
+            placeholder="0"
+            value={previousBalance}
+            onChange={(v) => setPreviousBalance(v.replace(/[^0-9.]/g, ""))}
             prefix="$"
             suffix="MXN"
             keyboardType="decimal-pad"
