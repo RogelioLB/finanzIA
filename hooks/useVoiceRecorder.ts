@@ -43,6 +43,7 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
   const lastSoundTimeRef = useRef<number>(0);
   const silenceCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const meteringStuckRef = useRef<number>(0);
+  const pendingResolveRef = useRef<((uri: string | null) => void) | null>(null);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const state = useAudioRecorderState(recorder, POLL_INTERVAL_MS);
@@ -106,15 +107,26 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
         clearInterval(silenceCheckIntervalRef.current);
         silenceCheckIntervalRef.current = null;
       }
+      let recordedUri: string | null = null;
       if (!state.isRecording) {
-        return recorder.uri;
+        recordedUri = recorder.uri;
+      } else {
+        await recorder.stop();
+        recordedUri = recorder.uri;
+        setUri(recordedUri);
       }
-      await recorder.stop();
-      const recordedUri = recorder.uri;
-      setUri(recordedUri);
+      // Resuelve la Promise pendiente de stopRecordingOnSilence (si el usuario detuvo manualmente)
+      if (pendingResolveRef.current) {
+        pendingResolveRef.current(recordedUri);
+        pendingResolveRef.current = null;
+      }
       return recordedUri;
     } catch (error) {
       console.error('[useVoiceRecorder] Stop error:', error);
+      if (pendingResolveRef.current) {
+        pendingResolveRef.current(null);
+        pendingResolveRef.current = null;
+      }
       return null;
     }
   }, [recorder, state.isRecording]);
@@ -128,6 +140,7 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
     } = options || {};
 
     return new Promise((resolve) => {
+      pendingResolveRef.current = resolve;
       const startTime = Date.now();
       let lastSoundTime = startTime;
       let lastMeteringValue = -160;
@@ -163,9 +176,11 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
               }
               const recordedUri = recorder.uri;
               setUri(recordedUri);
+              pendingResolveRef.current = null;
               resolve(recordedUri);
             } catch (error) {
               console.error('[useVoiceRecorder] Stop on silence error:', error);
+              pendingResolveRef.current = null;
               resolve(null);
             }
             return;
@@ -183,9 +198,11 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
               }
               const recordedUri = recorder.uri;
               setUri(recordedUri);
+              pendingResolveRef.current = null;
               resolve(recordedUri);
             } catch (error) {
               console.error('[useVoiceRecorder] Stop on silence error:', error);
+              pendingResolveRef.current = null;
               resolve(null);
             }
             return;
@@ -209,9 +226,11 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
             }
             const recordedUri = recorder.uri;
             setUri(recordedUri);
+            pendingResolveRef.current = null;
             resolve(recordedUri);
           } catch (error) {
             console.error('[useVoiceRecorder] Max duration error:', error);
+            pendingResolveRef.current = null;
             resolve(null);
           }
         }
