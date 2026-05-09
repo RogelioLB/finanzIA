@@ -23,7 +23,7 @@ import { useSQLiteService } from "@/lib/database/sqliteService";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type WalletKind = "debit" | "cash" | "wallet";
@@ -52,7 +52,7 @@ export default function EditWalletScreen() {
   const router = useRouter();
   const { theme, accent } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getWalletById, updateWallet, refreshWallets } = useWallets();
+  const { getWalletById, updateWallet, deleteWallet, refreshWallets } = useWallets();
   const { createTransaction } = useSQLiteService();
 
   const [name, setName] = useState("");
@@ -117,6 +117,30 @@ export default function EditWalletScreen() {
 
   const bankOptions = BANKS.map((b) => ({ id: b, label: b }));
 
+  const handleDelete = () => {
+    Alert.alert(
+      "Eliminar cuenta",
+      `¿Eliminar "${name}"? Se borrarán también todas sus transacciones. Esta acción no se puede deshacer.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteWallet(id!);
+              await refreshWallets();
+              Toast.success("Cuenta eliminada", "La cuenta y sus transacciones fueron eliminadas.");
+              router.back();
+            } catch {
+              Toast.error("Error", "No se pudo eliminar la cuenta.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleSave = async () => {
     if (!canSave || !id) return;
     setIsSubmitting(true);
@@ -177,6 +201,7 @@ export default function EditWalletScreen() {
         isSubmitting={isSubmitting}
         onClose={() => router.back()}
         onSave={handleSave}
+        onDelete={handleDelete}
       >
         {/* Live preview */}
         <View

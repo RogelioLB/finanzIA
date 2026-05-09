@@ -116,7 +116,7 @@ export default function DebtsScreen() {
                 const activeInst = installments.filter(i => i.paid_installments < i.total_installments);
                 const instThisMonth = activeInst.reduce((s, i) => s + i.monthly_amount, 0);
                 const instFuture = activeInst.reduce((s, i) => s + (i.total_installments - i.paid_installments - 1) * i.monthly_amount, 0);
-                const thisMonthTotal = Math.max(0, periodCharges + card.previous_balance + instThisMonth);
+                const thisMonthTotal = Math.max(0, card.previous_balance + instThisMonth);
                 const nextCutOff = card.next_cut_off_date;
                 const nextCutOffStr = nextCutOff
                   ? nextCutOff.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
@@ -152,10 +152,10 @@ export default function DebtsScreen() {
                           <Text style={[styles.horizonDue, { color: theme.textTer }]}>vence {nextCutOffStr}</Text>
                         ) : null}
                       </View>
-                      {instFuture > 0 && (
+                      {(periodCharges > 0 || instFuture > 0) && (
                         <View style={{ alignItems: 'flex-end' }}>
                           <Text style={[styles.horizonLabel, { color: theme.textTer }]}>PRÓXIMOS MESES</Text>
-                          <Text style={[styles.horizonAmountSmall, { color: theme.textSec }]}>{MXN(instFuture)}</Text>
+                          <Text style={[styles.horizonAmountSmall, { color: theme.textSec }]}>{MXN(Math.max(0, periodCharges) + instFuture)}</Text>
                         </View>
                       )}
                     </View>
@@ -166,7 +166,7 @@ export default function DebtsScreen() {
                         {card.previous_balance > 0 && (
                           <View style={[styles.chip, { backgroundColor: theme.surfaceAlt }]}>
                             <Text style={[styles.chipText, { color: theme.textTer }]}>
-                              Deuda ant. {MXN(card.previous_balance)}
+                              Est. cuenta {MXN(card.previous_balance)}
                             </Text>
                           </View>
                         )}

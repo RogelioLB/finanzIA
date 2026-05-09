@@ -201,20 +201,20 @@ export default function AddCreditCardScreen() {
             mono
           />
           <TextField
-            label="Saldo del ciclo actual"
+            label="Saldo del estado de cuenta actual"
             placeholder="0"
-            value={balance}
-            onChange={(v) => setBalance(v.replace(/[^0-9.]/g, ""))}
+            value={previousBalance}
+            onChange={(v) => setPreviousBalance(v.replace(/[^0-9.]/g, ""))}
             prefix="$"
             suffix="MXN"
             keyboardType="decimal-pad"
             mono
           />
           <TextField
-            label="Deuda de ciclos anteriores"
+            label="Cargos acumulando (ciclo abierto)"
             placeholder="0"
-            value={previousBalance}
-            onChange={(v) => setPreviousBalance(v.replace(/[^0-9.]/g, ""))}
+            value={balance}
+            onChange={(v) => setBalance(v.replace(/[^0-9.]/g, ""))}
             prefix="$"
             suffix="MXN"
             keyboardType="decimal-pad"

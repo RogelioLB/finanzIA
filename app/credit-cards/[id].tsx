@@ -69,6 +69,8 @@ export default function CreditCardDetailScreen() {
   }
 
   // Two-horizon calculations
+  // "Este mes" = statement balance (previous_balance) + installments due
+  // "Próximos meses" = charges accumulating since last cut-off + future installments
   const activeInstallments = installments.filter(
     (i) => i.paid_installments < i.total_installments
   );
@@ -81,8 +83,8 @@ export default function CreditCardDetailScreen() {
     0
   );
   const periodCharges = periodInfo?.periodCharges ?? 0;
-  const thisMonthTotal = periodCharges + card.previous_balance + installmentsThisMonth;
-  const futureMonthsTotal = installmentsFuture;
+  const thisMonthTotal = Math.max(0, card.previous_balance + installmentsThisMonth);
+  const futureMonthsTotal = Math.max(0, periodCharges) + installmentsFuture;
 
   const nextCutOff = card.next_cut_off_date;
   const nextCutOffStr = nextCutOff
@@ -196,20 +198,16 @@ export default function CreditCardDetailScreen() {
               <View style={{ alignItems: "flex-end", flex: 1 }}>
                 <Text style={[styles.summaryLabel, { color: theme.textSec }]}>PRÓXIMOS MESES</Text>
                 <Text style={[styles.summaryAmountSmall, { color: theme.textSec }]}>{MXN(futureMonthsTotal)}</Text>
-                <Text style={[styles.summaryDue, { color: theme.textTer }]}>en cuotas futuras</Text>
+                <Text style={[styles.summaryDue, { color: theme.textTer }]}>cargos + cuotas futuras</Text>
               </View>
             )}
           </View>
 
           {/* Breakdown */}
           <View style={[styles.breakdownSep, { backgroundColor: theme.border }]} />
-          <View style={styles.breakdownRow}>
-            <Text style={[styles.breakdownLabel, { color: theme.textTer }]}>Cargos del ciclo</Text>
-            <Text style={[styles.breakdownVal, { color: theme.textSec }]}>{MXN(Math.max(0, periodCharges))}</Text>
-          </View>
           {card.previous_balance > 0 && (
             <View style={styles.breakdownRow}>
-              <Text style={[styles.breakdownLabel, { color: theme.textTer }]}>Deuda anterior</Text>
+              <Text style={[styles.breakdownLabel, { color: theme.textTer }]}>Estado de cuenta</Text>
               <Text style={[styles.breakdownVal, { color: theme.textSec }]}>{MXN(card.previous_balance)}</Text>
             </View>
           )}
@@ -217,6 +215,12 @@ export default function CreditCardDetailScreen() {
             <View style={styles.breakdownRow}>
               <Text style={[styles.breakdownLabel, { color: theme.textTer }]}>Cuotas MSI ({activeInstallments.length})</Text>
               <Text style={[styles.breakdownVal, { color: theme.textSec }]}>{MXN(installmentsThisMonth)}/mes</Text>
+            </View>
+          )}
+          {periodCharges > 0 && (
+            <View style={styles.breakdownRow}>
+              <Text style={[styles.breakdownLabel, { color: theme.textTer }]}>Cargos del ciclo abierto</Text>
+              <Text style={[styles.breakdownVal, { color: theme.textSec }]}>{MXN(periodCharges)}</Text>
             </View>
           )}
         </View>

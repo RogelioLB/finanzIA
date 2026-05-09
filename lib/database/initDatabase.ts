@@ -510,11 +510,14 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       `);
     }
 
-    await db.execAsync(`
-      INSERT INTO wallets (id, name, balance, currency, icon, color)
-      SELECT '${uuid.v4()}', 'Bank', 0.0, COALESCE((SELECT default_currency FROM user_settings WHERE id = 'main'), 'MXN'), '🏦', '#4CAF50'
-      WHERE NOT EXISTS (SELECT 1 FROM wallets WHERE name = 'Bank');
-    `);
+    // Default Bank wallet: only on fresh install to avoid re-creating if user deleted it
+    if (currentVersion === 0) {
+      await db.execAsync(`
+        INSERT INTO wallets (id, name, balance, currency, icon, color)
+        SELECT '${uuid.v4()}', 'Bank', 0.0, COALESCE((SELECT default_currency FROM user_settings WHERE id = 'main'), 'MXN'), '🏦', '#4CAF50'
+        WHERE NOT EXISTS (SELECT 1 FROM wallets WHERE name = 'Bank');
+      `);
+    }
   });
 
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
