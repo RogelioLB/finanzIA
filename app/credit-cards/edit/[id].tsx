@@ -30,6 +30,7 @@ export default function EditCreditCardScreen() {
   const [holder, setHolder] = useState("");
   const [limit, setLimit] = useState("");
   const [balance, setBalance] = useState("");
+  const [previousBalance, setPreviousBalance] = useState("");
   const [cutoffDay, setCutoffDay] = useState("");
   const [paymentDay, setPaymentDay] = useState("");
   const [cat, setCat] = useState("");
@@ -49,6 +50,7 @@ export default function EditCreditCardScreen() {
       setLast4(card.last_four_digits || "");
       setLimit(card.credit_limit.toString());
       setBalance(card.current_balance.toString());
+      setPreviousBalance((card.previous_balance || 0).toString());
       setCutoffDay(card.cut_off_day.toString());
       setPaymentDay(card.payment_due_day.toString());
       setCat(card.interest_rate?.toString() || "");
@@ -132,6 +134,7 @@ export default function EditCreditCardScreen() {
         cut_off_day: cutoffN,
         payment_due_day: paymentN,
         interest_rate: cat ? parseFloat(cat) : undefined,
+        previous_balance: parseFloat(previousBalance) || 0,
         color,
       });
       Toast.success("¡Cambios guardados!", "La tarjeta se actualizó correctamente.");
@@ -259,10 +262,20 @@ export default function EditCreditCardScreen() {
             mono
           />
           <TextField
-            label="Saldo actual usado"
+            label="Saldo del ciclo actual"
             placeholder="0"
             value={balance}
             onChange={(v) => setBalance(v.replace(/[^0-9.]/g, ""))}
+            prefix="$"
+            suffix="MXN"
+            keyboardType="decimal-pad"
+            mono
+          />
+          <TextField
+            label="Deuda de ciclos anteriores"
+            placeholder="0"
+            value={previousBalance}
+            onChange={(v) => setPreviousBalance(v.replace(/[^0-9.]/g, ""))}
             prefix="$"
             suffix="MXN"
             keyboardType="decimal-pad"

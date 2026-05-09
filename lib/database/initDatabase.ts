@@ -1,7 +1,13 @@
 import { SQLiteDatabase } from "expo-sqlite";
 import uuid from "react-native-uuid";
 
-const DATABASE_VERSION = 16;
+const DATABASE_VERSION = 17;
+
+// Migration rules (v17+):
+// 1. Snapshot tables before modifying them (_backup_vN_<table>)
+// 2. Only ADD COLUMN or CREATE TABLE IF NOT EXISTS — never DROP data tables
+// 3. Verify row counts after migration; throw on mismatch (transaction rolls back)
+// 4. Keep _backup_vN_* tables; drop them in the NEXT version once data confirmed stable
 
 export async function initDatabase(db: SQLiteDatabase): Promise<void> {
   const data = await db.getFirstAsync<{
@@ -18,8 +24,9 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
   await db.execAsync("PRAGMA foreign_keys = ON;");
 
   await db.withTransactionAsync(async () => {
-    if (__DEV__ && currentVersion > 0 && currentVersion < DATABASE_VERSION) {
-      console.log("⚠️ Modo desarrollo: Recreando tablas desde versión", currentVersion);
+    if (currentVersion === 0) {
+      // Fresh install: wipe everything and start clean
+      console.log("🆕 Instalación nueva: creando base de datos desde cero");
       await db.execAsync("DROP TABLE IF EXISTS transaction_labels");
       await db.execAsync("DROP TABLE IF EXISTS labels");
       await db.execAsync("DROP TABLE IF EXISTS category_budget_limits");
@@ -34,25 +41,12 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       await db.execAsync("DROP TABLE IF EXISTS widget_settings");
       await db.execAsync("DROP TABLE IF EXISTS investments");
       await db.execAsync("DROP TABLE IF EXISTS investment_history");
-    } else if (__DEV__ && currentVersion === 0) {
-      // Solo la primera vez en dev: limpia tablas pero no recrea estructura cada vez
-      console.log("⚠️ Modo desarrollo: Recreando tablas desde version 0");
-      await db.execAsync("DROP TABLE IF EXISTS transaction_labels");
-      await db.execAsync("DROP TABLE IF EXISTS labels");
-      await db.execAsync("DROP TABLE IF EXISTS category_budget_limits");
-      await db.execAsync("DROP TABLE IF EXISTS transactions");
-      await db.execAsync("DROP TABLE IF EXISTS budgets");
-      await db.execAsync("DROP TABLE IF EXISTS objectives");
-      await db.execAsync("DROP TABLE IF EXISTS categories");
-      await db.execAsync("DROP TABLE IF EXISTS wallets");
-      await db.execAsync("DROP TABLE IF EXISTS credit_cards");
-      await db.execAsync("DROP TABLE IF EXISTS chat_messages");
-      await db.execAsync("DROP TABLE IF EXISTS user_settings");
-      await db.execAsync("DROP TABLE IF EXISTS widget_settings");
-      await db.execAsync("DROP TABLE IF EXISTS investments");
-      await db.execAsync("DROP TABLE IF EXISTS investment_history");
-    } else if (!__DEV__ && currentVersion > 0 && currentVersion < DATABASE_VERSION) {
-      console.log("📱 Producción: Actualizando esquema de base de datos de versión", currentVersion, "a", DATABASE_VERSION);
+      await db.execAsync("DROP TABLE IF EXISTS investment_types");
+      await db.execAsync("DROP TABLE IF EXISTS credit_installments");
+    } else if (currentVersion > 0 && currentVersion < DATABASE_VERSION) {
+      // Incremental soft migration — runs in both dev and production
+      console.log("📦 Migrando base de datos de versión", currentVersion, "→", DATABASE_VERSION);
+
       if (currentVersion < 16) {
         await db.execAsync(`
           CREATE TABLE IF NOT EXISTS investment_types (
@@ -99,7 +93,69 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
           CREATE INDEX IF NOT EXISTS idx_investment_history_inv ON investment_history(investment_id, date)
         `);
       }
+
+      if (currentVersion < 17) {
+        // --- v17: Add previous_balance to wallets + create credit_installments ---
+
+        // Step 1: Backup critical tables before any schema change
+        await db.execAsync(
+          "CREATE TABLE IF NOT EXISTS _backup_v17_wallets AS SELECT * FROM wallets"
+        );
+        await db.execAsync(
+          "CREATE TABLE IF NOT EXISTS _backup_v17_transactions AS SELECT * FROM transactions"
+        );
+        await db.execAsync(
+          "CREATE TABLE IF NOT EXISTS _backup_v17_user_settings AS SELECT * FROM user_settings"
+        );
+        console.log("✅ v17 backup creado");
+
+        // Step 2: ADD COLUMN — idempotent via PRAGMA guard
+        const walletCols = await db.getAllAsync<{ name: string }>(
+          "PRAGMA table_info(wallets)"
+        );
+        if (!walletCols.some((c) => c.name === "previous_balance")) {
+          await db.execAsync(
+            "ALTER TABLE wallets ADD COLUMN previous_balance REAL DEFAULT 0"
+          );
+        }
+
+        // Step 3: Create new table (idempotent)
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS credit_installments (
+            id TEXT PRIMARY KEY,
+            wallet_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            store TEXT,
+            total_amount REAL NOT NULL,
+            monthly_amount REAL NOT NULL,
+            total_installments INTEGER NOT NULL,
+            paid_installments INTEGER NOT NULL DEFAULT 0,
+            start_date INTEGER NOT NULL,
+            notes TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+          )
+        `);
+
+        // Step 4: Verify row count — throw on mismatch (withTransactionAsync rolls back)
+        const before = await db.getFirstAsync<{ n: number }>(
+          "SELECT COUNT(*) as n FROM _backup_v17_wallets"
+        );
+        const after = await db.getFirstAsync<{ n: number }>(
+          "SELECT COUNT(*) as n FROM wallets"
+        );
+        if (before!.n !== after!.n) {
+          throw new Error(
+            `v17 migration: wallet count mismatch (backup=${before!.n}, current=${after!.n})`
+          );
+        }
+        console.log("✅ v17 migración verificada —", after!.n, "wallets intactos");
+        // _backup_v17_* tables kept intentionally; drop in v18 once confirmed stable
+      }
     }
+
+    // ─── Full schema (runs for fresh installs, CREATE TABLE IF NOT EXISTS is idempotent) ───
 
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS wallets (
@@ -116,6 +172,7 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         cut_off_day INTEGER,
         payment_due_day INTEGER,
         interest_rate REAL DEFAULT 0,
+        previous_balance REAL DEFAULT 0,
         is_archived INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
         updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
@@ -340,6 +397,24 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
     `);
 
     await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS credit_installments (
+        id TEXT PRIMARY KEY,
+        wallet_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        store TEXT,
+        total_amount REAL NOT NULL,
+        monthly_amount REAL NOT NULL,
+        total_installments INTEGER NOT NULL,
+        paid_installments INTEGER NOT NULL DEFAULT 0,
+        start_date INTEGER NOT NULL,
+        notes TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.execAsync(`
       INSERT OR IGNORE INTO user_settings (id, default_currency, onboarding_completed)
       VALUES ('main', 'MXN', 0)
     `);
@@ -384,7 +459,7 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
 
     for (const category of expenseCategories) {
       await db.execAsync(`
-        INSERT INTO categories (id, name, icon, color, is_custom, is_income) 
+        INSERT INTO categories (id, name, icon, color, is_custom, is_income)
         SELECT '${uuid.v4()}', '${category.name}', '${category.icon}', '${category.color}', 0, 0
         WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = '${category.name}' AND is_income = 0);
       `);

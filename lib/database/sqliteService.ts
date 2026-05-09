@@ -16,6 +16,7 @@ export interface Wallet {
   cut_off_day?: number;
   payment_due_day?: number;
   interest_rate?: number;
+  previous_balance?: number;
   is_archived?: number;
   created_at?: number;
   updated_at?: number;
@@ -151,6 +152,7 @@ interface CreateWalletParams {
   cut_off_day?: number;
   payment_due_day?: number;
   interest_rate?: number;
+  previous_balance?: number;
 }
 
 interface UpdateWalletParams {
@@ -166,6 +168,7 @@ interface UpdateWalletParams {
   cut_off_day?: number;
   payment_due_day?: number;
   interest_rate?: number;
+  previous_balance?: number;
   is_archived?: number;
 }
 
@@ -375,6 +378,7 @@ export function useSQLiteService() {
     cut_off_day,
     payment_due_day,
     interest_rate,
+    previous_balance,
   }: CreateWalletParams): Promise<string> => {
     const id = uuid.v4();
 
@@ -382,8 +386,8 @@ export function useSQLiteService() {
       `INSERT INTO wallets (
         id, name, balance, currency, icon, color, type,
         bank, last_four_digits, credit_limit,
-        cut_off_day, payment_due_day, interest_rate
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        cut_off_day, payment_due_day, interest_rate, previous_balance
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         name,
@@ -398,6 +402,7 @@ export function useSQLiteService() {
         cut_off_day || null,
         payment_due_day || null,
         interest_rate || null,
+        previous_balance ?? 0,
       ]
     );
 
@@ -423,6 +428,7 @@ export function useSQLiteService() {
       cut_off_day,
       payment_due_day,
       interest_rate,
+      previous_balance,
       is_archived,
     }: UpdateWalletParams
   ): Promise<void> => {
@@ -491,6 +497,11 @@ export function useSQLiteService() {
     if (interest_rate !== undefined) {
       updateParts.push("interest_rate = ?");
       params.push(interest_rate || null);
+    }
+
+    if (previous_balance !== undefined) {
+      updateParts.push("previous_balance = ?");
+      params.push(previous_balance);
     }
 
     if (is_archived !== undefined) {
