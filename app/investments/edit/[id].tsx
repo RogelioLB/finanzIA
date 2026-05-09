@@ -7,6 +7,7 @@ import { MXN } from '@/theme/format';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Investment } from '@/lib/database/investmentService';
 import { useWallets } from '@/contexts/WalletsContext';
+import { useInvestments } from '@/contexts/InvestmentsContext';
 import { DesignIcon } from '@/components/ui/Icon';
 
 const ICONS = ['📈', '💰', '🏦', '💎', '🌱', '⚡', '🎯', '💵'];
@@ -18,6 +19,7 @@ export default function EditInvestmentScreen() {
   const router = useRouter();
   const db = useSQLiteContext();
   const { wallets } = useWallets();
+  const { refreshInvestments } = useInvestments();
 
   const [investment, setInvestment] = useState<Investment | null>(null);
   const [name, setName] = useState('');
@@ -70,6 +72,7 @@ export default function EditInvestmentScreen() {
         'UPDATE investments SET name = ?, annual_rate = ?, icon = ?, color = ?, notes = ?, wallet_id = ?, updated_at = ? WHERE id = ?',
         [name.trim(), rateNum, selectedIcon, selectedColor, notes.trim() || null, walletId, Date.now(), id]
       );
+      await refreshInvestments();
       router.back();
     } catch (error) {
       console.error('Error updating investment:', error);

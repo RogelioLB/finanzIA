@@ -6,8 +6,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '@/theme/ThemeProvider';
 import { MXN, MXN_decimal } from '@/theme/format';
 import { useSQLiteContext } from 'expo-sqlite';
-import { Investment } from '@/lib/database/investmentService';
 import { DesignIcon } from '@/components/ui/Icon';
+import { useInvestments } from '@/contexts/InvestmentsContext';
 
 const INVESTMENT_ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string; strokeWidth?: number }>> = {
   bond: DesignIcon.Bond,
@@ -28,30 +28,22 @@ export default function InvestmentDetailScreen() {
   const { theme, accent, density } = useTheme();
   const router = useRouter();
   const db = useSQLiteContext();
+  const { investments, isLoading, refreshInvestments } = useInvestments();
 
-  const [investment, setInvestment] = useState<Investment | null>(null);
+  const investment = investments.find(inv => inv.id === id) ?? null;
   const [history, setHistory] = useState<{ date: number; value: number }[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const compact = density === 'compact';
   const pad = compact ? 16 : 20;
 
+  // Re-fetcha el historial cada vez que cambia el valor de la inversión
   useEffect(() => {
-    const load = async () => {
-      if (!id) return;
-      const inv = await db.getFirstAsync<Investment>('SELECT * FROM investments WHERE id = ?', [id]);
-      setInvestment(inv);
-      if (inv) {
-        const hist = await db.getAllAsync<{ date: number; value: number }>(
-          'SELECT date, value FROM investment_history WHERE investment_id = ? ORDER BY date DESC LIMIT 30',
-          [id]
-        );
-        setHistory(hist.reverse());
-      }
-      setLoading(false);
-    };
-    load();
-  }, [id]);
+    if (!id) return;
+    db.getAllAsync<{ date: number; value: number }>(
+      'SELECT date, value FROM investment_history WHERE investment_id = ? ORDER BY date DESC LIMIT 30',
+      [id]
+    ).then(hist => setHistory(hist.reverse()));
+  }, [id, investment?.updated_at]);
 
   const handleDelete = () => {
     Alert.alert(
@@ -66,6 +58,7 @@ export default function InvestmentDetailScreen() {
             if (!id) return;
             await db.runAsync('DELETE FROM investment_history WHERE investment_id = ?', [id]);
             await db.runAsync('DELETE FROM investments WHERE id = ?', [id]);
+            await refreshInvestments();
             router.back();
           },
         },
@@ -77,7 +70,7 @@ export default function InvestmentDetailScreen() {
     router.push('/investments/edit/' + id as any);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.bg }]}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -196,7 +189,7 @@ export default function InvestmentDetailScreen() {
           </View>
         </View>
 
-{history.length > 0 && (
+        {history.length > 0 && (
           <View style={[styles.historySection, { marginHorizontal: pad, marginTop: 20 }]}>
             <Text style={[styles.sectionTitle, { color: theme.textSec }]}>HISTORIAL RECIENTE</Text>
             <View style={[styles.historyList, { backgroundColor: theme.surface, borderColor: theme.border, borderRadius: 16, marginTop: 8, borderWidth: 1, overflow: 'hidden' }]}>
