@@ -79,10 +79,11 @@ export default function HomeScreen() {
 
   const netWorth = useMemo(() => {
     const walletsSum = wallets.reduce((sum, w) => {
+      if (w.type === 'credit') return sum; // credit wallets shown separately as debts
       const balance = w.net_balance ?? w.balance;
       const inv = investmentsByWallet[w.id];
-      const total = balance + (w.type !== 'credit' && inv ? inv.totalValue : 0);
-      return sum + (w.type === 'credit' ? -balance : total);
+      const total = balance + (inv ? inv.totalValue : 0);
+      return sum + total;
     }, 0);
     // Solo agregar inversiones sin cuenta vinculada (las vinculadas ya están en el saldo de la wallet)
     const unlinkedInvestments = investments

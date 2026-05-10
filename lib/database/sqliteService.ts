@@ -275,8 +275,9 @@ export function useSQLiteService() {
    *   - expense: resta al balance
    */
   const calculateWalletBalance = async (walletId: string, initialBalance: number = 0, walletType: 'regular' | 'credit' = 'regular'): Promise<number> => {
-    // If there's an active billing cycle, use its opening_balance + in-cycle transactions.
-    // This captures rolled-over debt and interest that live only in billing_cycles, not in transactions.
+    // Check for an active billing cycle first.
+    // opening_balance = accumulated debt from previous cycles (NOT in transactions).
+    // We only sum in-cycle transactions to avoid double-counting with older periods.
     const activeCycle = await db.getFirstAsync<{
       opening_balance: number;
       start_date: number;
@@ -300,13 +301,15 @@ export function useSQLiteService() {
       const income = cycleResult?.income ?? 0;
 
       if (walletType === 'credit') {
+        // Credit wallet: opening_balance is carried-over debt; expenses add, income pays down
         return activeCycle.opening_balance + expenses - income;
       } else {
-        return activeCycle.opening_balance + income - expenses;
+        // Regular wallet: initialBalance is available funds; opening_balance is extra debt owed
+        return initialBalance - activeCycle.opening_balance - expenses + income;
       }
     }
 
-    // No active billing cycle — fall back to summing all transactions
+    // No active billing cycle — sum all transactions
     const incomeResult = await db.getFirstAsync<{ total: number }>(
       "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_id = ? AND type = 'income' AND is_excluded = 0",
       [walletId]
