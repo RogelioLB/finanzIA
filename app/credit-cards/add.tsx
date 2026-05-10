@@ -35,7 +35,7 @@ export default function AddCreditCardScreen() {
   const [pickerOpen, setPickerOpen] = useState<"bank" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const used = parseFloat(balance) || 0;
+const used = (parseFloat(balance) || 0) + (parseFloat(previousBalance) || 0);
   const limitN = parseFloat(limit) || 0;
   const pct = limitN > 0 ? (used / limitN) * 100 : 0;
   const available = Math.max(0, limitN - used);

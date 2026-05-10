@@ -264,58 +264,21 @@ export function useSQLiteService() {
 
   // ===== WALLETS =====
 
-  /**
+/**
    * Calcula el balance neto de una wallet específica
    * Excluye transacciones marcadas con is_excluded = 1 (suscripciones no pagadas)
-   * Para wallets de crédito: balance = deuda owed
-   *   - expense: suma al balance (aumenta deuda)
-   *   - income: resta al balance (paga deuda)
+   * Para wallets de crédito: total deuda = previous_balance + balance + gastos - pagos
    * Para wallets regulares: balance = dinero disponible
-   *   - income: suma al balance
-   *   - expense: resta al balance
    */
-  const calculateWalletBalance = async (walletId: string, initialBalance: number = 0, walletType: 'regular' | 'credit' = 'regular'): Promise<number> => {
-    // Check for an active billing cycle first.
-    // opening_balance = accumulated debt from previous cycles (NOT in transactions).
-    // We only sum in-cycle transactions to avoid double-counting with older periods.
-    const activeCycle = await db.getFirstAsync<{
-      opening_balance: number;
-      start_date: number;
-      end_date: number;
-    }>(
-      "SELECT opening_balance, start_date, end_date FROM billing_cycles WHERE wallet_id = ? AND status = 'active' LIMIT 1",
-      [walletId]
-    );
-
-    if (activeCycle) {
-      const cycleResult = await db.getFirstAsync<{ expenses: number; income: number }>(
-        `SELECT
-          COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expenses,
-          COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income
-        FROM transactions
-        WHERE wallet_id = ? AND is_excluded = 0
-          AND timestamp >= ? AND timestamp < ?`,
-        [walletId, activeCycle.start_date, activeCycle.end_date]
-      );
-      const expenses = cycleResult?.expenses ?? 0;
-      const income = cycleResult?.income ?? 0;
-
-      if (walletType === 'credit') {
-        // Credit wallet: opening_balance is carried-over debt; expenses add, income pays down
-        return activeCycle.opening_balance + expenses - income;
-      } else {
-        // Regular wallet: initialBalance is available funds; opening_balance is extra debt owed
-        return initialBalance - activeCycle.opening_balance - expenses + income;
-      }
-    }
-
-    // No active billing cycle — sum all transactions
+  const calculateWalletBalance = async (walletId: string, initialBalance: number = 0, walletType: 'regular' | 'credit' = 'regular', previousBalance: number = 0): Promise<number> => {
+    // Obtenemos la suma de ingresos (excluyendo transacciones marcadas como excluidas)
     const incomeResult = await db.getFirstAsync<{ total: number }>(
       "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_id = ? AND type = 'income' AND is_excluded = 0",
       [walletId]
     );
     const income = incomeResult?.total || 0;
 
+    // Obtenemos la suma de gastos (excluyendo transacciones marcadas como excluidas)
     const expenseResult = await db.getFirstAsync<{ total: number }>(
       "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_id = ? AND type = 'expense' AND is_excluded = 0",
       [walletId]
@@ -323,24 +286,28 @@ export function useSQLiteService() {
     const expense = expenseResult?.total || 0;
 
     if (walletType === 'credit') {
-      return initialBalance + expense - income;
+      // Para tarjetas de crédito: previous_balance (deuda cycles anteriores) + balance (cargos ciclo actual) + gastos - pagos
+      return previousBalance + initialBalance + expense - income;
     } else {
+      // Para wallets regulares: balance inicial + ingresos - gastos
       return initialBalance + income - expense;
     }
   };
 
-  /**
+/**
    * Calcula campos de crédito para una wallet tipo 'credit'
    */
   const calculateCreditFields = (wallet: Wallet): Wallet => {
     if (wallet.type === 'credit' && wallet.credit_limit) {
-      wallet.available_credit = wallet.credit_limit - wallet.balance;
-      wallet.utilization_percentage = (wallet.balance / wallet.credit_limit) * 100;
+      // net_balance incluye previous_balance + balance + transactions para deuda total
+      const totalDebt = wallet.net_balance ?? wallet.balance;
+      wallet.available_credit = wallet.credit_limit - totalDebt;
+      wallet.utilization_percentage = (wallet.credit_limit > 0) ? (totalDebt / wallet.credit_limit) * 100 : 0;
     }
     return wallet;
   };
 
-  /**
+/**
    * Obtiene todas las billeteras con el balance neto calculado
    */
   const getWallets = async (): Promise<Wallet[]> => {
@@ -350,7 +317,7 @@ export function useSQLiteService() {
 
     // Calculamos el balance neto para cada wallet usando la función centralizada
     for (const wallet of wallets) {
-      wallet.net_balance = await calculateWalletBalance(wallet.id, wallet.balance, wallet.type || 'regular');
+      wallet.net_balance = await calculateWalletBalance(wallet.id, wallet.balance, wallet.type || 'regular', wallet.previous_balance || 0);
       calculateCreditFields(wallet);
     }
 
@@ -368,7 +335,7 @@ export function useSQLiteService() {
 
     if (wallet) {
       // Calculamos el balance neto usando la función centralizada
-      wallet.net_balance = await calculateWalletBalance(wallet.id, wallet.balance, wallet.type || 'regular');
+      wallet.net_balance = await calculateWalletBalance(wallet.id, wallet.balance, wallet.type || 'regular', wallet.previous_balance || 0);
       calculateCreditFields(wallet);
     }
 
