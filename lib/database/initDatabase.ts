@@ -1,7 +1,7 @@
 import { SQLiteDatabase } from "expo-sqlite";
 import uuid from "react-native-uuid";
 
-const DATABASE_VERSION = 17;
+const DATABASE_VERSION = 18;
 
 // Migration rules (v17+):
 // 1. Snapshot tables before modifying them (_backup_vN_<table>)
@@ -152,6 +152,41 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         }
         console.log("✅ v17 migración verificada —", after!.n, "wallets intactos");
         // _backup_v17_* tables kept intentionally; drop in v18 once confirmed stable
+      }
+
+      if (currentVersion < 18) {
+        // --- v18: Add billing_cycles table ---
+
+        // Drop v17 backups (confirmed stable)
+        await db.execAsync("DROP TABLE IF EXISTS _backup_v17_wallets");
+        await db.execAsync("DROP TABLE IF EXISTS _backup_v17_transactions");
+        await db.execAsync("DROP TABLE IF EXISTS _backup_v17_user_settings");
+
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS billing_cycles (
+            id TEXT PRIMARY KEY,
+            wallet_id TEXT NOT NULL,
+            cycle_number INTEGER NOT NULL,
+            start_date INTEGER NOT NULL,
+            end_date INTEGER NOT NULL,
+            opening_balance REAL NOT NULL DEFAULT 0,
+            closing_balance REAL,
+            minimum_payment REAL NOT NULL DEFAULT 0,
+            interest_rate REAL NOT NULL DEFAULT 0,
+            interest_applied REAL NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'future' CHECK(status IN ('active', 'closed', 'future')),
+            notes TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+          )
+        `);
+
+        await db.execAsync(`
+          CREATE INDEX IF NOT EXISTS idx_billing_cycles_wallet ON billing_cycles(wallet_id, cycle_number)
+        `);
+
+        console.log("✅ v18 migración completada — tabla billing_cycles creada");
       }
     }
 
@@ -412,6 +447,30 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         updated_at INTEGER NOT NULL,
         FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
       )
+    `);
+
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS billing_cycles (
+        id TEXT PRIMARY KEY,
+        wallet_id TEXT NOT NULL,
+        cycle_number INTEGER NOT NULL,
+        start_date INTEGER NOT NULL,
+        end_date INTEGER NOT NULL,
+        opening_balance REAL NOT NULL DEFAULT 0,
+        closing_balance REAL,
+        minimum_payment REAL NOT NULL DEFAULT 0,
+        interest_rate REAL NOT NULL DEFAULT 0,
+        interest_applied REAL NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'future' CHECK(status IN ('active', 'closed', 'future')),
+        notes TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.execAsync(`
+      CREATE INDEX IF NOT EXISTS idx_billing_cycles_wallet ON billing_cycles(wallet_id, cycle_number)
     `);
 
     await db.execAsync(`
