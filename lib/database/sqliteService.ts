@@ -275,26 +275,53 @@ export function useSQLiteService() {
    *   - expense: resta al balance
    */
   const calculateWalletBalance = async (walletId: string, initialBalance: number = 0, walletType: 'regular' | 'credit' = 'regular'): Promise<number> => {
-    // Obtenemos la suma de ingresos (excluyendo transacciones marcadas como excluidas)
+    // If there's an active billing cycle, use its opening_balance + in-cycle transactions.
+    // This captures rolled-over debt and interest that live only in billing_cycles, not in transactions.
+    const activeCycle = await db.getFirstAsync<{
+      opening_balance: number;
+      start_date: number;
+      end_date: number;
+    }>(
+      "SELECT opening_balance, start_date, end_date FROM billing_cycles WHERE wallet_id = ? AND status = 'active' LIMIT 1",
+      [walletId]
+    );
+
+    if (activeCycle) {
+      const cycleResult = await db.getFirstAsync<{ expenses: number; income: number }>(
+        `SELECT
+          COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expenses,
+          COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income
+        FROM transactions
+        WHERE wallet_id = ? AND is_excluded = 0
+          AND timestamp >= ? AND timestamp < ?`,
+        [walletId, activeCycle.start_date, activeCycle.end_date]
+      );
+      const expenses = cycleResult?.expenses ?? 0;
+      const income = cycleResult?.income ?? 0;
+
+      if (walletType === 'credit') {
+        return activeCycle.opening_balance + expenses - income;
+      } else {
+        return activeCycle.opening_balance + income - expenses;
+      }
+    }
+
+    // No active billing cycle — fall back to summing all transactions
     const incomeResult = await db.getFirstAsync<{ total: number }>(
       "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_id = ? AND type = 'income' AND is_excluded = 0",
       [walletId]
     );
     const income = incomeResult?.total || 0;
 
-    // Obtenemos la suma de gastos (excluyendo transacciones marcadas como excluidas)
     const expenseResult = await db.getFirstAsync<{ total: number }>(
       "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE wallet_id = ? AND type = 'expense' AND is_excluded = 0",
       [walletId]
     );
     const expense = expenseResult?.total || 0;
 
-    // Lógica diferente según el tipo de wallet
     if (walletType === 'credit') {
-      // Para tarjetas de crédito: balance inicial + gastos (deuda) - ingresos (pagos)
       return initialBalance + expense - income;
     } else {
-      // Para wallets regulares: balance inicial + ingresos - gastos
       return initialBalance + income - expense;
     }
   };
