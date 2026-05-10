@@ -18,7 +18,12 @@ import {
   CURRENCIES,
   ICON_OPTIONS,
 } from "@/components/views/forms/constants";
+import BillingCyclesSection, {
+  BillingCyclesConfig,
+  buildDefaultBillingConfig,
+} from "@/components/views/forms/BillingCyclesSection";
 import { useWallets } from "@/contexts/WalletsContext";
+import { useBillingCyclesService } from "@/lib/database/billingCyclesService";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -46,6 +51,7 @@ export default function AddWalletScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { createWallet } = useWallets();
+  const billingCyclesService = useBillingCyclesService();
 
   const [name, setName] = useState("");
   const [kind, setKind] = useState<WalletKind>("debit");
@@ -57,11 +63,19 @@ export default function AddWalletScreen() {
   const [color, setColor] = useState("#0A84FF");
   const [pickerOpen, setPickerOpen] = useState<PickerKey>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [billingConfig, setBillingConfig] = useState<BillingCyclesConfig>(
+    buildDefaultBillingConfig(0)
+  );
 
   const cur = useMemo(
     () => CURRENCIES.find((c) => c.code === currency) || CURRENCIES[0],
     [currency]
   );
+
+  const balanceNum = useMemo(() => {
+    const n = parseFloat(balance);
+    return isNaN(n) ? 0 : n;
+  }, [balance]);
 
   const Ico = (DesignIcon as any)[iconName] || DesignIcon.Bank;
 
@@ -88,10 +102,9 @@ export default function AddWalletScreen() {
     if (!canSave) return;
     setIsSubmitting(true);
     try {
-      const balanceNum = balance ? parseFloat(balance) : 0;
-      await createWallet({
+      const walletId = await createWallet({
         name: name.trim(),
-        balance: isNaN(balanceNum) ? 0 : balanceNum,
+        balance: balanceNum,
         icon: ICON_NAME_TO_EMOJI[iconName] || "🏦",
         color,
         currency,
@@ -99,6 +112,19 @@ export default function AddWalletScreen() {
         bank: kind !== "cash" ? bank || undefined : undefined,
         last_four_digits: kind === "debit" ? last4 || undefined : undefined,
       });
+
+      if (billingConfig.enabled && billingConfig.cycles.length > 0) {
+        const startDate = new Date(billingConfig.startYear, billingConfig.startMonth, 1);
+        await billingCyclesService.bulkCreateCycles(
+          walletId,
+          startDate,
+          1,
+          billingConfig.count,
+          billingConfig.interestRate,
+          billingConfig.cycles
+        );
+      }
+
       Toast.success("¡Cuenta creada!", "La cuenta se creó correctamente.");
       router.back();
     } catch (e) {
@@ -230,6 +256,13 @@ export default function AddWalletScreen() {
             onSelect={setColor}
           />
         </FormGroup>
+
+        <BillingCyclesSection
+          value={billingConfig}
+          onChange={setBillingConfig}
+          initialBalance={balanceNum}
+          currencySymbol={cur.symbol}
+        />
       </FormShell>
 
       <ListPickerSheet
