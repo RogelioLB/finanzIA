@@ -42,9 +42,9 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function buildDefaultCycles(count: number, initialBalance: number): CycleInput[] {
-  return Array.from({ length: count }, (_, i) => ({
-    opening_balance: i === 0 ? initialBalance : 0,
+function buildDefaultCycles(count: number): CycleInput[] {
+  return Array.from({ length: count }, () => ({
+    opening_balance: 0,
     minimum_payment: 0,
   }));
 }
@@ -59,7 +59,7 @@ function recalcCycles(cycles: CycleInput[], interestRate: number): CycleInput[] 
   });
 }
 
-export function buildDefaultBillingConfig(initialBalance: number): BillingCyclesConfig {
+export function buildDefaultBillingConfig(): BillingCyclesConfig {
   const now = new Date();
   return {
     enabled: false,
@@ -67,23 +67,12 @@ export function buildDefaultBillingConfig(initialBalance: number): BillingCycles
     startYear: now.getFullYear(),
     startMonth: now.getMonth(),
     interestRate: 0,
-    cycles: buildDefaultCycles(3, initialBalance),
+    cycles: buildDefaultCycles(3),
   };
 }
 
 export default function BillingCyclesSection({ value, onChange, initialBalance, currencySymbol }: Props) {
   const { theme, accent } = useTheme();
-
-  // Sync first cycle opening_balance when initialBalance prop changes
-  useEffect(() => {
-    if (!value.enabled) return;
-    const updated = value.cycles.map((c, i) =>
-      i === 0 ? { ...c, opening_balance: initialBalance } : c
-    );
-    const recalced = recalcCycles(updated, value.interestRate);
-    onChange({ ...value, cycles: recalced });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialBalance]);
 
   const toggleEnabled = useCallback(() => {
     const next = !value.enabled;
@@ -91,12 +80,12 @@ export default function BillingCyclesSection({ value, onChange, initialBalance, 
       onChange({
         ...value,
         enabled: true,
-        cycles: buildDefaultCycles(value.count, initialBalance),
+        cycles: buildDefaultCycles(value.count),
       });
     } else {
       onChange({ ...value, enabled: next });
     }
-  }, [value, onChange, initialBalance]);
+  }, [value, onChange]);
 
   const setCount = useCallback(
     (raw: string) => {
@@ -106,13 +95,10 @@ export default function BillingCyclesSection({ value, onChange, initialBalance, 
       while (cycles.length < n) {
         cycles.push({ opening_balance: 0, minimum_payment: 0 });
       }
-      if (cycles.length > 0) {
-        cycles[0] = { ...cycles[0], opening_balance: initialBalance };
-      }
       cycles = recalcCycles(cycles, value.interestRate);
       onChange({ ...value, count: n, cycles });
     },
-    [value, onChange, initialBalance]
+    [value, onChange]
   );
 
   const setInterestRate = useCallback(

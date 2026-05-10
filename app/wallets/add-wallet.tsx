@@ -64,7 +64,7 @@ export default function AddWalletScreen() {
   const [pickerOpen, setPickerOpen] = useState<PickerKey>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [billingConfig, setBillingConfig] = useState<BillingCyclesConfig>(
-    buildDefaultBillingConfig(0)
+    buildDefaultBillingConfig()
   );
 
   const cur = useMemo(
