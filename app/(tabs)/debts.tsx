@@ -117,9 +117,13 @@ export default function DebtsScreen() {
                 const instThisMonth = activeInst.reduce((s, i) => s + i.monthly_amount, 0);
                 const instFuture = activeInst.reduce((s, i) => s + (i.total_installments - i.paid_installments - 1) * i.monthly_amount, 0);
                 const thisMonthTotal = Math.max(0, card.previous_balance + instThisMonth);
-                const nextCutOff = card.next_cut_off_date;
+const nextCutOff = card.next_cut_off_date;
                 const nextCutOffStr = nextCutOff
                   ? nextCutOff.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+                  : '';
+                const nextPayment = card.next_payment_date;
+                const nextPaymentStr = nextPayment
+                  ? nextPayment.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
                   : '';
 
                 return (
@@ -148,8 +152,8 @@ export default function DebtsScreen() {
                       <View>
                         <Text style={[styles.horizonLabel, { color: theme.textTer }]}>A PAGAR ESTE MES</Text>
                         <Text style={[styles.horizonAmount, { color: theme.text }]}>{MXN(thisMonthTotal)}</Text>
-                        {nextCutOffStr ? (
-                          <Text style={[styles.horizonDue, { color: theme.textTer }]}>vence {nextCutOffStr}</Text>
+{nextPaymentStr ? (
+                          <Text style={[styles.horizonDue, { color: theme.textTer }]}>vence {nextPaymentStr}</Text>
                         ) : null}
                       </View>
                       {(periodCharges > 0 || instFuture > 0) && (
