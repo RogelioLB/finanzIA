@@ -126,14 +126,19 @@ const getNextPaymentDate = (
   nextCutOffDate: Date
 ): Date => {
   const payDay = paymentDueDay || 15;
-  const cutDay = cutOffDay || 1;
-  const cutOffMonth = nextCutOffDate.getMonth();
-  const cutOffYear = nextCutOffDate.getFullYear();
+  const today = new Date();
+  const thisMonth = today.getMonth();
+  const thisYear = today.getFullYear();
+  const todayDay = today.getDate();
 
-  if (payDay > cutDay) {
-    return new Date(cutOffYear, cutOffMonth, payDay);
+  // Si el día de pago ya pasó este mes, es el próximo mes
+  // Si el día de pago aún no llega, es este mes (antes del corte)
+  if (payDay > todayDay) {
+    // Pago este mes (aun no pasa)
+    return new Date(thisYear, thisMonth, payDay);
   } else {
-    return new Date(cutOffYear, cutOffMonth + 1, payDay);
+    // Pago ya pasó, es el próximo mes
+    return new Date(thisYear, thisMonth + 1, payDay);
   }
 };
 
