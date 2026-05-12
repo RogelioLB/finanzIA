@@ -9,6 +9,8 @@ import { MXN } from '@/theme/format';
 import { useAddTransaction } from '@/hooks/useAddTransaction';
 import { useCategories } from '@/hooks/useCategories';
 import { useWallets } from '@/contexts/WalletsContext';
+import { useTransactions } from '@/contexts/TransactionsContext';
+import { useSQLiteService } from '@/lib/database/sqliteService';
 import { Toast } from '@/components/ui/Toast';
 import ClockTimePicker from '@/components/views/forms/ClockTimePicker';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
@@ -43,17 +45,21 @@ function CategoryIcon({ name, size, color }: { name?: string; size: number; colo
 
 export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseSheetProps) {
   const { theme, accent, numpadStyle, fabIconColor } = useTheme();
-  const { wallets } = useWallets();
+  const { wallets, refreshWallets } = useWallets();
   const { categories } = useCategories();
   const { createTransaction, resetTransaction } = useAddTransaction();
+  const { createTransaction: createTransactionDB } = useSQLiteService();
+  const { refreshTransactions } = useTransactions();
 
-  const [kind, setKind] = useState<'expense' | 'income'>('expense');
+  const [kind, setKind] = useState<'expense' | 'income' | 'transfer'>('expense');
   const [amount, setAmount] = useState('0');
   const [categoryId, setCategoryId] = useState('');
   const [walletId, setWalletId] = useState('');
+  const [toWalletId, setToWalletId] = useState('');
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState('');
   const [showAccountPicker, setShowAccountPicker] = useState(false);
+  const [showToAccountPicker, setShowToAccountPicker] = useState(false);
   const [listening, setListening] = useState(false);
   const [timestamp, setTimestamp] = useState(Date.now());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -71,12 +77,14 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
   const toggleRef = useRef<View>(null);
   const expenseBtnRef = useRef<View>(null);
   const incomeBtnRef = useRef<View>(null);
+  const transferBtnRef = useRef<View>(null);
   const togglePos = useSharedValue(0);
   const toggleWidth = useSharedValue(50);
   const pulseAnim = useSharedValue(1);
   const pulseOpacity = useSharedValue(0);
 
   const isIncome = kind === 'income';
+  const isTransfer = kind === 'transfer';
 
   const expenseCategories = useMemo(
     () => categories.filter(c => c.type === 'expense'),
@@ -86,6 +94,11 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
   const incomeCategories = useMemo(
     () => categories.filter(c => c.type === 'income'),
     [categories]
+  );
+
+  const debitWallets = useMemo(
+    () => wallets.filter(w => w.type !== 'credit'),
+    [wallets]
   );
 
   useEffect(() => {
@@ -102,21 +115,21 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
     if (wallets.length > 0 && !walletId) {
       setWalletId(wallets[0].id);
     }
-  }, [wallets, walletId]);
+    if (debitWallets.length > 1 && !toWalletId) {
+      const other = debitWallets.find(w => w.id !== walletId);
+      if (other) setToWalletId(other.id);
+    }
+  }, [wallets, walletId, debitWallets, toWalletId]);
 
   useEffect(() => {
-    if (kind === 'income') {
-      incomeBtnRef.current?.measureLayout(toggleRef.current as any, (x: number, _y: number, width: number) => {
-        togglePos.value = withSpring(x - 4, { damping: 15, stiffness: 150 });
-        toggleWidth.value = withSpring(width, { damping: 15, stiffness: 150 });
-      });
-    } else {
-      expenseBtnRef.current?.measureLayout(toggleRef.current as any, (x: number, _y: number, width: number) => {
-        togglePos.value = withSpring(x - 4, { damping: 15, stiffness: 150 });
-        toggleWidth.value = withSpring(width, { damping: 15, stiffness: 150 });
-      });
-    }
+    const btnRef = kind === 'income' ? incomeBtnRef : kind === 'transfer' ? transferBtnRef : expenseBtnRef;
+    btnRef.current?.measureLayout(toggleRef.current as any, (x: number, _y: number, width: number) => {
+      togglePos.value = withSpring(x - 4, { damping: 15, stiffness: 150 });
+      toggleWidth.value = withSpring(width, { damping: 15, stiffness: 150 });
+    });
   }, [kind]);
+
+  const toggleBgColor = isTransfer ? '#0A84FF' : isIncome ? theme.good : accent;
 
   const toggleBgStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: togglePos.value }],
@@ -281,6 +294,7 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
     setNote('');
     setNoteOpen(false);
     setShowAccountPicker(false);
+    setShowToAccountPicker(false);
     setKind('expense');
     setListening(false);
     setTimestamp(Date.now());
@@ -290,12 +304,60 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
     onClose();
   }, [onClose, resetTransaction]);
 
+  const toWallet = useMemo(
+    () => debitWallets.find(w => w.id === toWalletId) || null,
+    [debitWallets, toWalletId]
+  );
+
   const handleSave = useCallback(async () => {
     const numAmount = parseFloat(amount);
     if (!numAmount || numAmount <= 0) {
       Toast.error('Monto inválido', 'Por favor ingresa un monto válido');
       return;
     }
+
+    if (isTransfer) {
+      if (!selectedWallet || !toWallet) {
+        Toast.error('Sin cuenta', 'Selecciona cuentas de origen y destino');
+        return;
+      }
+      if (selectedWallet.id === toWallet.id) {
+        Toast.error('Misma cuenta', 'Las cuentas de origen y destino deben ser diferentes');
+        return;
+      }
+      const available = selectedWallet.net_balance ?? selectedWallet.balance ?? 0;
+      if (numAmount > available) {
+        Toast.error('Saldo insuficiente', `Disponible: $${available.toFixed(2)}`);
+        return;
+      }
+      try {
+        await createTransactionDB({
+          wallet_id: selectedWallet.id,
+          amount: numAmount,
+          type: 'expense',
+          title: note.trim() || `Transferencia a ${toWallet.name}`,
+          note: note.trim() || undefined,
+          timestamp,
+          to_wallet_id: toWallet.id,
+        });
+        await createTransactionDB({
+          wallet_id: toWallet.id,
+          amount: numAmount,
+          type: 'income',
+          title: note.trim() || `Transferencia de ${selectedWallet.name}`,
+          note: note.trim() || undefined,
+          timestamp,
+          to_wallet_id: selectedWallet.id,
+        });
+        await refreshWallets();
+        await refreshTransactions();
+        handleClose();
+      } catch {
+        Toast.error('Error', 'No se pudo completar la transferencia');
+      }
+      return;
+    }
+
     if (!categoryId) {
       Toast.error('Categoría requerida', 'Selecciona una categoría');
       return;
@@ -311,14 +373,14 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
       category: cat,
       note,
       title: kind === 'income' ? (note || cat?.name || 'Ingreso') : (cat?.name || 'Gasto'),
-      type: kind,
+      type: kind as 'expense' | 'income',
     });
     if (success) {
       handleClose();
     } else {
       Toast.error('No se pudo guardar', 'Revisa el monto o la cuenta seleccionada');
     }
-  }, [amount, kind, categoryId, selectedWallet, selectedCategory, note, timestamp, createTransaction, handleClose]);
+  }, [amount, kind, isTransfer, categoryId, selectedWallet, toWallet, selectedCategory, note, timestamp, createTransaction, createTransactionDB, refreshWallets, refreshTransactions, handleClose]);
 
   const toggleVoice = () => handleVoiceRecording();
 
@@ -332,8 +394,8 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
     return dec !== undefined ? `${intFmt}.${dec}` : intFmt;
   })();
 
-  const sign = isIncome ? '+' : '−';
-  const signColor = isIncome ? theme.good : theme.bad;
+  const sign = isTransfer ? '→' : isIncome ? '+' : '−';
+  const signColor = isTransfer ? '#0A84FF' : isIncome ? theme.good : theme.bad;
   const valid = parseFloat(amount) > 0;
 
   const walletIcon = (type?: string) => {
@@ -365,12 +427,15 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
         </View>
 
         <View ref={toggleRef} style={[styles.kindToggle, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Animated.View style={[styles.toggleBg, { backgroundColor: isIncome ? theme.good : accent }, toggleBgStyle]} />
+          <Animated.View style={[styles.toggleBg, { backgroundColor: toggleBgColor }, toggleBgStyle]} />
           <TouchableOpacity ref={expenseBtnRef} onPress={() => setKind('expense')} style={styles.kindBtn}>
             <Text style={[styles.kindLabel, { color: kind === 'expense' ? fabIconColor : theme.text }]}>Gasto</Text>
           </TouchableOpacity>
           <TouchableOpacity ref={incomeBtnRef} onPress={() => setKind('income')} style={styles.kindBtn}>
             <Text style={[styles.kindLabel, { color: kind === 'income' ? '#0A0A0A' : theme.text }]}>Ingreso</Text>
+          </TouchableOpacity>
+          <TouchableOpacity ref={transferBtnRef} onPress={() => setKind('transfer')} style={styles.kindBtn}>
+            <Text style={[styles.kindLabel, { color: kind === 'transfer' ? '#FFFFFF' : theme.text }]}>Transferir</Text>
           </TouchableOpacity>
         </View>
 
@@ -382,45 +447,118 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
         </View>
 
         <View style={[styles.accountPickerWrap, { paddingHorizontal: 18, marginBottom: 10 }]}>
-          <TouchableOpacity
-            onPress={() => setShowAccountPicker(s => !s)}
-            style={[styles.accountBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-          >
-            <View style={[styles.accountIconWrap, { backgroundColor: selectedWallet?.color ? `${selectedWallet.color}22` : theme.surfaceAlt }]}>
-              <WalletIconComp size={15} color={selectedWallet?.color || accent} strokeWidth={1.7} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.accountLabel, { color: theme.textTer }]}>
-                {isIncome ? 'A cuenta' : 'Pagar con'}
-              </Text>
-              <Text style={[styles.accountName, { color: theme.text }]}>
-                {selectedWallet?.name || 'Sin cuenta'}
-              </Text>
-            </View>
-            <DesignIcon.Chevron size={14} color={theme.textTer} strokeWidth={1.7} />
-          </TouchableOpacity>
-          {showAccountPicker && (
-            <View style={[styles.accountList, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              {wallets.map((w, i) => {
-                const WI = walletIcon(w.type);
-                const sel = walletId === w.id;
-                const bal = w.balance ?? 0;
-                return (
-                  <TouchableOpacity key={w.id} onPress={() => { setWalletId(w.id); setShowAccountPicker(false); }} style={styles.accountListRow}>
-                    <View style={[styles.accountIconWrap, { backgroundColor: w.color ? `${w.color}22` : theme.surfaceAlt }]}>
-                      <WI size={14} color={w.color || accent} strokeWidth={1.7} />
-                    </View>
-                    <Text style={[styles.accountListName, { color: theme.text, flex: 1 }]}>{w.name}</Text>
-                    <Text style={[styles.accountListBal, { color: theme.textTer }]}>{MXN(Math.abs(bal))}</Text>
-                    {sel && <DesignIcon.Check size={14} color={accent} strokeWidth={2.5} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+          {isTransfer ? (
+            <>
+              {/* Origen */}
+              <TouchableOpacity
+                onPress={() => { setShowAccountPicker(s => !s); setShowToAccountPicker(false); }}
+                style={[styles.accountBtn, { backgroundColor: theme.surface, borderColor: theme.border, marginBottom: 8 }]}
+              >
+                <View style={[styles.accountIconWrap, { backgroundColor: selectedWallet?.color ? `${selectedWallet.color}22` : theme.surfaceAlt }]}>
+                  <WalletIconComp size={15} color={selectedWallet?.color || accent} strokeWidth={1.7} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.accountLabel, { color: theme.textTer }]}>De cuenta</Text>
+                  <Text style={[styles.accountName, { color: theme.text }]}>{selectedWallet?.name || 'Sin cuenta'}</Text>
+                </View>
+                <DesignIcon.Chevron size={14} color={theme.textTer} strokeWidth={1.7} />
+              </TouchableOpacity>
+              {showAccountPicker && (
+                <View style={[styles.accountList, { backgroundColor: theme.surface, borderColor: theme.border, marginBottom: 8 }]}>
+                  {debitWallets.filter(w => w.id !== toWalletId).map(w => {
+                    const WI = walletIcon(w.type);
+                    const sel = walletId === w.id;
+                    const bal = w.net_balance ?? w.balance ?? 0;
+                    return (
+                      <TouchableOpacity key={w.id} onPress={() => { setWalletId(w.id); setShowAccountPicker(false); }} style={styles.accountListRow}>
+                        <View style={[styles.accountIconWrap, { backgroundColor: w.color ? `${w.color}22` : theme.surfaceAlt }]}>
+                          <WI size={14} color={w.color || accent} strokeWidth={1.7} />
+                        </View>
+                        <Text style={[styles.accountListName, { color: theme.text, flex: 1 }]}>{w.name}</Text>
+                        <Text style={[styles.accountListBal, { color: theme.textTer }]}>{MXN(Math.abs(bal))}</Text>
+                        {sel && <DesignIcon.Check size={14} color={accent} strokeWidth={2.5} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+              {/* Destino */}
+              <TouchableOpacity
+                onPress={() => { setShowToAccountPicker(s => !s); setShowAccountPicker(false); }}
+                style={[styles.accountBtn, { backgroundColor: theme.surface, borderColor: '#0A84FF44' }]}
+              >
+                <View style={[styles.accountIconWrap, { backgroundColor: toWallet?.color ? `${toWallet.color}22` : '#0A84FF22' }]}>
+                  {toWallet ? (() => { const TWI = walletIcon(toWallet.type); return <TWI size={15} color={toWallet.color || '#0A84FF'} strokeWidth={1.7} />; })() : <DesignIcon.Wallet size={15} color="#0A84FF" strokeWidth={1.7} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.accountLabel, { color: '#0A84FF' }]}>A cuenta</Text>
+                  <Text style={[styles.accountName, { color: theme.text }]}>{toWallet?.name || 'Seleccionar destino'}</Text>
+                </View>
+                <DesignIcon.Chevron size={14} color={theme.textTer} strokeWidth={1.7} />
+              </TouchableOpacity>
+              {showToAccountPicker && (
+                <View style={[styles.accountList, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  {debitWallets.filter(w => w.id !== walletId).map(w => {
+                    const WI = walletIcon(w.type);
+                    const sel = toWalletId === w.id;
+                    const bal = w.net_balance ?? w.balance ?? 0;
+                    return (
+                      <TouchableOpacity key={w.id} onPress={() => { setToWalletId(w.id); setShowToAccountPicker(false); }} style={styles.accountListRow}>
+                        <View style={[styles.accountIconWrap, { backgroundColor: w.color ? `${w.color}22` : theme.surfaceAlt }]}>
+                          <WI size={14} color={w.color || accent} strokeWidth={1.7} />
+                        </View>
+                        <Text style={[styles.accountListName, { color: theme.text, flex: 1 }]}>{w.name}</Text>
+                        <Text style={[styles.accountListBal, { color: theme.textTer }]}>{MXN(Math.abs(bal))}</Text>
+                        {sel && <DesignIcon.Check size={14} color={accent} strokeWidth={2.5} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </>
+          ) : (
+            <>
+              <TouchableOpacity
+                onPress={() => setShowAccountPicker(s => !s)}
+                style={[styles.accountBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+              >
+                <View style={[styles.accountIconWrap, { backgroundColor: selectedWallet?.color ? `${selectedWallet.color}22` : theme.surfaceAlt }]}>
+                  <WalletIconComp size={15} color={selectedWallet?.color || accent} strokeWidth={1.7} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.accountLabel, { color: theme.textTer }]}>
+                    {isIncome ? 'A cuenta' : 'Pagar con'}
+                  </Text>
+                  <Text style={[styles.accountName, { color: theme.text }]}>
+                    {selectedWallet?.name || 'Sin cuenta'}
+                  </Text>
+                </View>
+                <DesignIcon.Chevron size={14} color={theme.textTer} strokeWidth={1.7} />
+              </TouchableOpacity>
+              {showAccountPicker && (
+                <View style={[styles.accountList, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  {wallets.map((w) => {
+                    const WI = walletIcon(w.type);
+                    const sel = walletId === w.id;
+                    const bal = w.balance ?? 0;
+                    return (
+                      <TouchableOpacity key={w.id} onPress={() => { setWalletId(w.id); setShowAccountPicker(false); }} style={styles.accountListRow}>
+                        <View style={[styles.accountIconWrap, { backgroundColor: w.color ? `${w.color}22` : theme.surfaceAlt }]}>
+                          <WI size={14} color={w.color || accent} strokeWidth={1.7} />
+                        </View>
+                        <Text style={[styles.accountListName, { color: theme.text, flex: 1 }]}>{w.name}</Text>
+                        <Text style={[styles.accountListBal, { color: theme.textTer }]}>{MXN(Math.abs(bal))}</Text>
+                        {sel && <DesignIcon.Check size={14} color={accent} strokeWidth={2.5} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </>
           )}
         </View>
 
-        {!isIncome && (
+        {!isIncome && !isTransfer && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -445,7 +583,7 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
           </ScrollView>
         )}
 
-        {isIncome && incomeCategories.length > 0 && (
+        {isIncome && !isTransfer && incomeCategories.length > 0 && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -476,7 +614,7 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
               autoFocus
               value={note}
               onChangeText={setNote}
-              placeholder={isIncome ? 'Concepto…' : 'Nota…'}
+              placeholder={isTransfer ? 'Concepto de transferencia…' : isIncome ? 'Concepto…' : 'Nota…'}
               placeholderTextColor={theme.textTer}
               style={[styles.noteInput, { flex: 1, backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
             />
@@ -486,7 +624,7 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
               style={[styles.noteBtn, { flex: 1, borderColor: theme.borderStrong }]}
             >
               <Text style={{ color: theme.textSec, fontSize: 12 }}>
-                + {isIncome ? 'Concepto' : 'Nota'}
+                + {isTransfer ? 'Concepto' : isIncome ? 'Concepto' : 'Nota'}
               </Text>
             </TouchableOpacity>
           )}
@@ -554,10 +692,10 @@ export default function QuickExpenseSheet({ visible, onClose }: QuickExpenseShee
           <TouchableOpacity
             disabled={!valid}
             onPress={handleSave}
-            style={[styles.saveBtn, { backgroundColor: valid ? (isIncome ? theme.good : accent) : theme.surfaceAlt }]}
+            style={[styles.saveBtn, { backgroundColor: valid ? (isTransfer ? '#0A84FF' : isIncome ? theme.good : accent) : theme.surfaceAlt }]}
           >
-            <Text style={[styles.saveBtnText, { color: valid ? (isIncome ? '#0A0A0A' : fabIconColor) : theme.textTer }]}>
-              {isIncome ? 'Registrar ingreso' : 'Guardar gasto'}
+            <Text style={[styles.saveBtnText, { color: valid ? (isTransfer ? '#FFFFFF' : isIncome ? '#0A0A0A' : fabIconColor) : theme.textTer }]}>
+              {isTransfer ? 'Transferir' : isIncome ? 'Registrar ingreso' : 'Guardar gasto'}
             </Text>
           </TouchableOpacity>
         </View>
