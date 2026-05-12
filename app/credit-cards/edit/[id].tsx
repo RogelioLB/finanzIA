@@ -49,7 +49,7 @@ export default function EditCreditCardScreen() {
       setBank(card.bank || "");
       setLast4(card.last_four_digits || "");
       setLimit(card.credit_limit.toString());
-      setBalance(card.current_balance.toString());
+      setBalance((card.open_cycle_balance ?? 0).toString());
       setPreviousBalance((card.previous_balance || 0).toString());
       setCutoffDay(card.cut_off_day.toString());
       setPaymentDay(card.payment_due_day.toString());
@@ -130,7 +130,7 @@ const used = (parseFloat(balance) || 0) + (parseFloat(previousBalance) || 0);
         bank: bank,
         last_four_digits: last4,
         credit_limit: limitN,
-        current_balance: used,
+        current_balance: parseFloat(balance) || 0,
         cut_off_day: cutoffN,
         payment_due_day: paymentN,
         interest_rate: cat ? parseFloat(cat) : undefined,

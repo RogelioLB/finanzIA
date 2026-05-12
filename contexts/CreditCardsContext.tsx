@@ -31,6 +31,7 @@ export interface CreditCard {
   payment_due_day: number;
   interest_rate: number;
   previous_balance: number;
+  open_cycle_balance: number;
   color: string | null;
   icon: string | null;
   is_archived: number;
@@ -172,6 +173,7 @@ const walletToCreditCard = (wallet: Wallet): CreditCard => {
     payment_due_day: wallet.payment_due_day || 15,
     interest_rate: wallet.interest_rate || 0,
     previous_balance: wallet.previous_balance || 0,
+    open_cycle_balance: wallet.balance || 0,
     color: wallet.color || null,
     icon: wallet.icon || null,
     is_archived: wallet.is_archived || 0,
