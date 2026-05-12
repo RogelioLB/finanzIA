@@ -70,7 +70,7 @@ const used = (parseFloat(balance) || 0) + (parseFloat(previousBalance) || 0);
         bank: bank,
         last_four_digits: last4,
         credit_limit: limitN,
-        current_balance: used,
+        current_balance: parseFloat(balance) || 0,
         cut_off_day: cutoffN,
         payment_due_day: paymentN,
         interest_rate: cat ? parseFloat(cat) : undefined,
